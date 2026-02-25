@@ -492,38 +492,7 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
     max_steps = p.get("max_steps", 300)
     project_dir = output_dir.parent
     training_image_dir = image_dir
-    resize_stats = None
-    training_max_size = normalize_max_size(p.get("training_image_max_size"))
-    if training_max_size:
-        resize_msg = f"🪄 Downscaling training images to ≤ {training_max_size}px before training..."
-        logger.info("Starting training image resize pass (≤%d px)", training_max_size)
-        update_status(
-            project_dir,
-            "processing",
-            progress=54,
-            stage="training",
-            stage_progress=0,
-            message=resize_msg,
-            mode=mode,
-        )
-        try:
-            training_image_dir, resize_stats = prepare_training_images(image_dir, project_dir, training_max_size)
-            logger.info(
-                "Finished resizing training images (%s)",
-                resize_stats,
-            )
-            update_status(
-                project_dir,
-                "processing",
-                stage="training",
-                stage_progress=5,
-                message=f"✅ Training images ready at ≤ {training_max_size}px",
-                mode=mode,
-            )
-        except Exception as exc:
-            training_image_dir = image_dir
-            resize_stats = None
-            logger.warning("Failed to prepare resized training images; using originals. Error: %s", exc)
+    images_max_size = normalize_max_size(p.get("images_max_size"))
 
     stop_flag = output_dir.parent / "stop_requested"
 
@@ -597,9 +566,9 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
         pass
 
     init_message = f"🚀 Initializing Gaussian Splatting trainer ({'GPU ⚡' if device == 'cuda' else 'CPU'}, {mode} mode)..."
-    if resize_stats:
+    if images_max_size:
         init_message = (
-            f"{init_message}\n📐 Training images limited to {training_max_size}px"
+            f"{init_message}\n📐 Input images limited to ≤ {images_max_size}px"
         )
 
     update_status(
@@ -777,7 +746,7 @@ def main():
     args = parser.parse_args()
 
     # Merge mode into params
-    params = args.params
+    params = dict(args.params or {})
     if "mode" not in params:
         params["mode"] = args.mode
 
@@ -813,10 +782,41 @@ def main():
             resume = bool(params.get("resume", False)) if params else False
         except Exception:
             resume = False
+
+        active_image_dir = image_dir
+        resize_stats = None
+        images_max_size = normalize_max_size(params.get("images_max_size"))
+        if images_max_size:
+            resize_stage = "training" if stage == "train_only" else "colmap"
+            logger.info("Preparing resized image set (≤%d px) for project %s", images_max_size, args.project_id)
+            update_status(
+                project_dir,
+                "processing",
+                progress=5 if resize_stage == "colmap" else 55,
+                stage=resize_stage,
+                stage_progress=2 if resize_stage == "training" else 5,
+                message=f"📐 Resizing input images to ≤ {images_max_size}px...",
+            )
+            try:
+                active_image_dir, resize_stats = prepare_training_images(image_dir, project_dir, images_max_size)
+                logger.info("Prepared resized image set at %s (%s)", active_image_dir, resize_stats)
+                update_status(
+                    project_dir,
+                    "processing",
+                    stage=resize_stage,
+                    stage_progress=6 if resize_stage == "training" else 8,
+                    message=f"✅ Image set ready at ≤ {images_max_size}px",
+                )
+                colmap_cfg = dict(params.get("colmap") or {})
+                colmap_cfg.setdefault("max_image_size", images_max_size)
+                params["colmap"] = colmap_cfg
+            except Exception as exc:
+                logger.warning("Failed to prepare resized images; using originals. Error: %s", exc)
+                active_image_dir = image_dir
         
         if stage == "colmap_only":
             update_status(project_dir, "processing", progress=1, stage="colmap", message="🚀 Starting COLMAP structure-from-motion pipeline...")
-            colmap_dir = run_colmap(image_dir, output_dir, params)
+            colmap_dir = run_colmap(active_image_dir, output_dir, params)
             logger.info("COLMAP completed")
             # Mark COLMAP as completed for frontend tick/green
             update_status(project_dir, "completed", progress=100, stage="colmap", message="✅ Sparse 3D reconstruction complete!")
@@ -831,11 +831,11 @@ def main():
                 raise RuntimeError("Sparse model not found. Run COLMAP first.")
             msg = "🎯 Starting Gaussian Splatting training..."
             update_status(project_dir, "processing", progress=55, stage="training", message=msg)
-            stop_reason = run_gsplat_training(image_dir, colmap_dir, output_dir, params, resume=resume)
+            stop_reason = run_gsplat_training(active_image_dir, colmap_dir, output_dir, params, resume=resume)
         else:
             # Full pipeline
             update_status(project_dir, "processing", progress=1, stage="colmap", message="🚀 Starting full pipeline - Running COLMAP structure-from-motion...")
-            colmap_dir = run_colmap(image_dir, output_dir, params)
+            colmap_dir = run_colmap(active_image_dir, output_dir, params)
             logger.info("COLMAP completed")
 
             # Always use outputs/sparse/0 if it exists, else outputs/sparse
@@ -843,7 +843,7 @@ def main():
                 colmap_dir = colmap_dir / "0"
             msg = "🎯 Starting Gaussian Splatting training..."
             update_status(project_dir, "processing", progress=55, stage="training", message=msg)
-            stop_reason = run_gsplat_training(image_dir, colmap_dir, output_dir, params, resume=resume)
+            stop_reason = run_gsplat_training(active_image_dir, colmap_dir, output_dir, params, resume=resume)
 
         if stop_reason:
             # If stopped, set status to 'stopped' and include step info in message

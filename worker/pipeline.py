@@ -147,52 +147,65 @@ def run_full_pipeline(project_id: str, params: dict | None = None):
         image_dir = project_dir / "images"
         output_dir = project_dir / "outputs"
 
-        training_image_dir_cache = None
-        training_max_size = normalize_max_size(params.get("training_image_max_size")) if params else None
+        prepared_image_dir: Path | None = None
+        images_max_size = normalize_max_size(params.get("images_max_size")) if params else None
 
-        def get_training_image_dir():
-            nonlocal training_image_dir_cache
-            if training_image_dir_cache is not None:
-                return training_image_dir_cache
-            if not training_max_size:
-                training_image_dir_cache = image_dir
-                return training_image_dir_cache
+        def get_pipeline_image_dir(stage_hint: str):
+            nonlocal prepared_image_dir
+            if prepared_image_dir is not None:
+                return prepared_image_dir
+            if not images_max_size:
+                prepared_image_dir = image_dir
+                return prepared_image_dir
             try:
                 logger.info(
-                    "Preparing resized training images for project %s (≤%d px)",
+                    "Preparing resized image set for project %s (≤%d px)",
                     project_id,
-                    training_max_size,
+                    images_max_size,
                 )
                 status.update_status(
                     project_id,
                     "processing",
-                    stage="training",
-                    stage_progress=2,
-                    message=f"📐 Resizing training images to ≤ {training_max_size}px...",
+                    stage=stage_hint,
+                    stage_progress=3 if stage_hint == "training" else 5,
+                    message=f"📐 Resizing input images to ≤ {images_max_size}px...",
                 )
-                resized_dir, stats = prepare_training_images(image_dir, project_dir, training_max_size)
+                resized_dir, stats = prepare_training_images(image_dir, project_dir, images_max_size)
                 logger.info(
-                    "Prepared resized training set at %s (max=%d px): %s",
+                    "Prepared resized image set at %s (max=%d px): %s",
                     resized_dir,
-                    training_max_size,
+                    images_max_size,
                     stats,
                 )
                 status.update_status(
                     project_id,
                     "processing",
-                    stage="training",
-                    stage_progress=5,
-                    message=f"✅ Training images ready at ≤ {training_max_size}px",
+                    stage=stage_hint,
+                    stage_progress=6 if stage_hint == "training" else 8,
+                    message=f"✅ Image set ready at ≤ {images_max_size}px",
                 )
-                training_image_dir_cache = resized_dir
+                prepared_image_dir = resized_dir
             except Exception as exc:
                 logger.warning(
-                    "Failed to prepare resized training images; using originals. Error: %s",
+                    "Failed to prepare resized images; falling back to originals. Error: %s",
                     exc,
                 )
-                training_image_dir_cache = image_dir
-            return training_image_dir_cache
+                prepared_image_dir = image_dir
+            return prepared_image_dir
         
+        def params_for_colmap_stage():
+            if not params:
+                if not images_max_size:
+                    return None
+                return {"colmap": {"max_image_size": images_max_size}}
+            if not images_max_size:
+                return params
+            cloned = dict(params)
+            inner = dict(cloned.get("colmap") or {})
+            inner.setdefault("max_image_size", images_max_size)
+            cloned["colmap"] = inner
+            return cloned
+
         # Ensure directories exist
         if not image_dir.exists():
             raise FileNotFoundError(f"Images directory not found: {image_dir}")
@@ -201,9 +214,10 @@ def run_full_pipeline(project_id: str, params: dict | None = None):
         
         if stage == "colmap_only":
             # 1️⃣ COLMAP SfM only
+            active_image_dir = get_pipeline_image_dir("colmap")
             logger.info(f"Running COLMAP for project: {project_id}")
             status.update_status(project_id, "processing", progress=20, stage="colmap", message="Running COLMAP")
-            sparse_dir = colmap.run_colmap(image_dir, output_dir, params)
+            sparse_dir = colmap.run_colmap(active_image_dir, output_dir, params_for_colmap_stage())
             logger.info(f"COLMAP completed for project: {project_id}")
             # Only set completed if not stopped
             current_status = status.get_status(project_id)
@@ -224,7 +238,7 @@ def run_full_pipeline(project_id: str, params: dict | None = None):
                 raise FileNotFoundError("Sparse model not found. Run COLMAP first.")
             logger.info(f"Running Gaussian Splatting for project: {project_id}")
             status.update_status(project_id, "processing", progress=60, stage="training", message="Training gaussians")
-            training_dir = get_training_image_dir()
+            training_dir = get_pipeline_image_dir("training")
             gs_output = gsplat.run_gsplat(training_dir, sparse_dir, output_dir, params or {})
             logger.info(f"Gaussian Splatting completed for project: {project_id}")
             current_status = status.get_status(project_id)
@@ -240,9 +254,10 @@ def run_full_pipeline(project_id: str, params: dict | None = None):
         else:
             import time
             # Full pipeline
+            active_image_dir = get_pipeline_image_dir("colmap")
             logger.info(f"Running COLMAP for project: {project_id}")
             status.update_status(project_id, "processing", progress=20, stage="colmap", message="Running COLMAP")
-            sparse_dir = colmap.run_colmap(image_dir, output_dir, params)
+            sparse_dir = colmap.run_colmap(active_image_dir, output_dir, params_for_colmap_stage())
             logger.info(f"COLMAP completed for project: {project_id}")
             # Mark COLMAP as completed for frontend tick/green
             current_status = status.get_status(project_id)
@@ -259,7 +274,7 @@ def run_full_pipeline(project_id: str, params: dict | None = None):
 
             logger.info(f"Running Gaussian Splatting for project: {project_id}")
             status.update_status(project_id, "processing", progress=60, stage="training", message="Training gaussians")
-            training_dir = get_training_image_dir()
+            training_dir = get_pipeline_image_dir("training")
             gs_output = gsplat.run_gsplat(training_dir, sparse_dir, output_dir, params or {})
             logger.info(f"Gaussian Splatting completed for project: {project_id}")
             current_status = status.get_status(project_id)
