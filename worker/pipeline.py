@@ -22,10 +22,13 @@ def run_full_pipeline(project_id: str, params: dict | None = None):
     Set USE_DOCKER_WORKER=true to use Docker worker (recommended).
     Set USE_DOCKER_WORKER=false to use local COLMAP/gsplat (must be installed).
     """
-    # Extract mode from params (default to baseline if not specified)
-    mode = params.get("mode", "baseline") if params else "baseline"
-    max_steps = params.get("max_steps") if params else None
-    stage = params.get("stage", "full") if params else "full"
+    params = dict(params or {})
+    # Extract core selectors with sane defaults so downstream components always see explicit values
+    mode = params.get("mode", "baseline")
+    engine = params.get("engine", "gsplat")
+    params.setdefault("engine", engine)
+    max_steps = params.get("max_steps")
+    stage = params.get("stage", "full")
     
     # Configure per-project file logging (local mode only)
     try:
@@ -44,7 +47,7 @@ def run_full_pipeline(project_id: str, params: dict | None = None):
 
     # Use Docker worker for processing
     if USE_DOCKER:
-        logger.info(f"Using DOCKER WORKER for project {project_id} (mode: {mode})")
+        logger.info(f"Using DOCKER WORKER for project {project_id} (mode={mode}, engine={engine})")
         try:
             # Pre-Docker: provide useful, user-visible substep messages
             logger.info("DOCKER: Preparing Docker worker (check image, GPU, volumes)...")

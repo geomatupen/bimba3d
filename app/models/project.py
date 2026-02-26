@@ -51,11 +51,14 @@ class StatusResponse(BaseModel):
     device: Optional[str] = None
     can_resume: Optional[bool] = None  # Whether project has checkpoints/outputs to resume
     last_completed_step: Optional[int] = None
+    engine: Optional[str] = None
 
 
 class ProcessParams(BaseModel):
     # Training mode
     mode: Optional[str] = None  # "baseline" or "modified"
+    # Training engine selection: "gsplat" (default) or "litegs"
+    engine: Optional[str] = None
     # Pipeline stage: "full" (default), "colmap_only", "train_only"
     stage: Optional[str] = None
     # Resume from last checkpoint if available
@@ -85,6 +88,9 @@ class ProcessParams(BaseModel):
     pruning_policy: Optional[str] = None
     pruning_weights: Optional[dict] = None
     images_max_size: Optional[int] = None
+    # LiteGS-specific knobs
+    litegs_target_primitives: Optional[int] = None
+    litegs_alpha_shrink: Optional[float] = None
 
 
 class EvaluationMetrics(BaseModel):

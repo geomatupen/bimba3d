@@ -268,13 +268,20 @@ def process_project(project_id: str, params: ProcessParams | None = Body(None)):
             raise HTTPException(status_code=400, detail="No images in project")
         
         # Update status to processing
-        status.update_status(project_id, "processing", progress=5)
+        status.update_status(project_id, "processing", progress=5, engine=engine)
         
+        # Prepare params payload with defaults (engine defaults to gsplat)
+        params_payload = params.dict(exclude_none=True) if params else {}
+        engine = params_payload.get("engine", "gsplat")
+        if engine not in {"gsplat", "litegs"}:
+            raise HTTPException(status_code=400, detail=f"Invalid training engine: {engine}")
+        params_payload["engine"] = engine
+
         # Start processing in background thread
         # Pass optional parameters to pipeline
         thread = threading.Thread(
             target=pipeline.run_full_pipeline,
-            args=(project_id, (params.dict(exclude_none=True) if params else None)),
+            args=(project_id, params_payload),
             daemon=True
         )
         thread.start()

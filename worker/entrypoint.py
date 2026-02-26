@@ -7,6 +7,7 @@ Runs COLMAP + faithful gsplat training (with research hooks) + export.
 import argparse
 import json
 import logging
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -37,6 +38,8 @@ def update_status(
     stopped_stage: str = None,
     stopped_step: int | str = None,
     stopped_percentage: float = None,
+    device: str = None,
+    engine: str = None,
 ):
     """Update status.json file."""
     status_file = project_dir / "status.json"
@@ -75,6 +78,10 @@ def update_status(
             data["message"] = message
         if timing is not None:
             data["timing"] = timing
+        if device is not None:
+            data["device"] = device
+        if engine is not None:
+            data["engine"] = engine
         if stopped_stage is not None:
             data["stopped_stage"] = stopped_stage
         if stopped_step is not None:
@@ -123,6 +130,133 @@ def write_metrics(project_dir: Path, metrics: dict):
         temp_file.replace(metrics_file)
     except Exception as e:
         logger.error(f"Failed to write metrics: {e}")
+
+
+def _ensure_symlink(source: Path, link_path: Path):
+    """Create or replace a symlink pointing to source."""
+    try:
+        source_path = Path(source).resolve()
+    except Exception:
+        source_path = Path(source)
+    link_path = Path(link_path)
+
+    if link_path.exists() or link_path.is_symlink():
+        try:
+            existing_target = link_path.resolve()
+        except Exception:
+            existing_target = None
+        if existing_target and existing_target == source_path:
+            return
+        if link_path.is_dir() and not link_path.is_symlink():
+            shutil.rmtree(link_path)
+        else:
+            link_path.unlink(missing_ok=True)
+    link_path.parent.mkdir(parents=True, exist_ok=True)
+    link_path.symlink_to(source_path, target_is_directory=source_path.is_dir())
+
+
+def _find_latest_litegs_checkpoint(model_root: Path) -> Path | None:
+    ckpt_dir = Path(model_root) / "checkpoints"
+    if not ckpt_dir.exists():
+        return None
+    candidates = sorted(ckpt_dir.glob("chkpnt*.pth"))
+    return candidates[-1] if candidates else None
+
+
+def _patch_litegs_opacity_decay(decay_rate: float):
+    """Monkey patch LiteGS opacity decay to honor user shrink factor."""
+    if decay_rate is None:
+        return
+    try:
+        import litegs.training.densify as litegs_densify
+        import torch
+    except Exception as exc:  # pragma: no cover - optional dependency
+        logger.warning("LiteGS opacity patch skipped: %s", exc)
+        return
+
+    current_reset = litegs_densify.DensityControllerOfficial.reset_opacity
+    base_reset = getattr(current_reset, "_bimba_original_reset", current_reset)
+    if getattr(current_reset, "_bimba_decay_rate", None) == decay_rate:
+        return
+
+    def patched(self, optimizer, epoch):  # noqa: ANN001 - signature fixed by upstream
+        if self.densify_params.opacity_reset_mode == 'decay':
+            xyz, scale, rot, sh_0, sh_rest, opacity = self._get_params_from_optimizer(optimizer)
+
+            def inverse_sigmoid(x):
+                return torch.log(x / (1 - x))
+
+            actived_opacities = opacity.sigmoid()
+            opacity.data = inverse_sigmoid((actived_opacities * decay_rate).clamp_min(1.0 / 128))
+            optimizer.state.clear()
+        else:
+            return base_reset(self, optimizer, epoch)
+
+    patched._bimba_original_reset = base_reset  # type: ignore[attr-defined]
+    patched._bimba_decay_rate = decay_rate      # type: ignore[attr-defined]
+    litegs_densify.DensityControllerOfficial.reset_opacity = patched
+
+
+def _export_litegs_outputs(model_root: Path, output_dir: Path, colmap_dir: Path, training_summary: dict):
+    """Convert LiteGS point cloud outputs into splat artifacts and metadata."""
+    from litegs.io_manager import load_ply  # pylint: disable=import-error
+    import torch
+    from gsplat.exporter import export_splats
+
+    ply_path = Path(model_root) / "point_cloud" / "finish" / "point_cloud.ply"
+    if not ply_path.exists():
+        raise FileNotFoundError(f"LiteGS output missing: {ply_path}")
+
+    sh_degree = int(training_summary.get("sh_degree", 3))
+    xyz, scale, rot, sh0, sh_rest, opacity = load_ply(str(ply_path), sh_degree)
+
+    means = torch.from_numpy(xyz.T).float().contiguous()
+    scales = torch.from_numpy(scale.T).float().contiguous()
+    quats = torch.from_numpy(rot.T).float().contiguous()
+    opacities = torch.from_numpy(opacity.T).float().squeeze(-1).contiguous()
+    sh0_tensor = torch.from_numpy(sh0).float().permute(2, 0, 1).contiguous()
+    sh_rest_tensor = torch.from_numpy(sh_rest).float().permute(2, 0, 1).contiguous()
+
+    splat_path = Path(output_dir) / "splats.splat"
+    export_splats(
+        means=means,
+        scales=scales,
+        quats=quats,
+        opacities=opacities,
+        sh0=sh0_tensor,
+        shN=sh_rest_tensor,
+        format="splat",
+        save_to=str(splat_path),
+    )
+    ply_export = Path(output_dir) / "splats.ply"
+    export_splats(
+        means=means,
+        scales=scales,
+        quats=quats,
+        opacities=opacities,
+        sh0=sh0_tensor,
+        shN=sh_rest_tensor,
+        format="ply",
+        save_to=str(ply_export),
+    )
+
+    metadata = {
+        "version": "1.0",
+        "type": "gaussian_splats",
+        "training_engine": "litegs",
+        "colmap_model": str(colmap_dir),
+        "training_config": {
+            "engine": "litegs",
+            "target_primitives": training_summary.get("target_primitives"),
+            "alpha_shrink": training_summary.get("alpha_shrink"),
+            "iterations": training_summary.get("iterations"),
+        },
+    }
+    metadata_path = Path(output_dir) / "metadata.json"
+    tmp_metadata = metadata_path.with_suffix('.tmp')
+    with open(tmp_metadata, "w", encoding="utf-8") as handle:
+        json.dump(metadata, handle, indent=2)
+    tmp_metadata.replace(metadata_path)
 
 
 def _run_cmd_with_retry(cmd: list[str], retries: int = 3, delay_sec: float = 2.0):
@@ -735,6 +869,151 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
     return trainer.stop_reason
 
 
+def run_litegs_training(image_dir: Path, colmap_dir: Path, output_dir: Path, params: dict, resume: bool = False):
+    """Run LiteGS training pipeline and export artifacts."""
+    project_dir = output_dir.parent
+    stop_flag = project_dir / "stop_requested"
+    engine_label = "LiteGS"
+
+    # Detect device availability for status updates
+    try:
+        import torch
+        device_label = "cuda" if torch.cuda.is_available() else "cpu"
+    except Exception:  # pragma: no cover - torch should exist but guard anyway
+        device_label = "cuda"
+
+    status_message = f"🎯 Starting {engine_label} training..."
+    update_status(
+        project_dir,
+        "processing",
+        progress=55,
+        stage="training",
+        stage_progress=5,
+        message=status_message,
+        device=device_label,
+        engine="litegs",
+    )
+
+    if stop_flag.exists():
+        update_status(
+            project_dir,
+            "stopped",
+            progress=55,
+            stage="training",
+            message="⏸️ Processing stopped before LiteGS training.",
+            stop_requested=True,
+            stopped_stage="training",
+        )
+        try:
+            stop_flag.unlink()
+        except Exception:
+            pass
+        return 0
+
+    try:
+        import litegs  # pylint: disable=import-error
+        from litegs import config as litegs_config  # pylint: disable=import-error
+        from litegs import training as litegs_training  # pylint: disable=import-error
+    except Exception as exc:
+        logger.error("LiteGS import failed: %s", exc)
+        update_status(project_dir, "failed", error=f"LiteGS not installed: {exc}")
+        raise
+
+    dataset_root = output_dir / "litegs" / "dataset"
+    model_root = output_dir / "litegs" / "artifacts"
+    dataset_root.mkdir(parents=True, exist_ok=True)
+    model_root.mkdir(parents=True, exist_ok=True)
+
+    _ensure_symlink(Path(image_dir), dataset_root / "images")
+    colmap_sparse_root = Path(colmap_dir)
+    sparse_src = colmap_sparse_root.parent if colmap_sparse_root.name == "0" else colmap_sparse_root
+    _ensure_symlink(sparse_src, dataset_root / "sparse")
+
+    lp, op, pp, dp = litegs_config.get_default_arg()
+    lp.source_path = str(dataset_root)
+    lp.model_path = str(model_root)
+    if hasattr(lp, "images"):
+        lp.images = "images"
+
+    training_summary = {
+        "iterations": getattr(op, "iterations", None),
+        "target_primitives": getattr(dp, "target_primitives", None),
+        "alpha_shrink": None,
+        "sh_degree": getattr(lp, "sh_degree", 3),
+    }
+
+    user_steps = params.get("max_steps")
+    if user_steps is not None:
+        try:
+            op.iterations = max(1, int(user_steps))
+            training_summary["iterations"] = op.iterations
+        except Exception:
+            logger.warning("Invalid LiteGS max_steps override: %s", user_steps)
+
+    target_override = params.get("litegs_target_primitives")
+    if target_override is not None:
+        try:
+            dp.target_primitives = max(1, int(target_override))
+        except Exception:
+            logger.warning("Invalid LiteGS target primitive override: %s", target_override)
+    training_summary["target_primitives"] = getattr(dp, "target_primitives", None)
+
+    alpha_shrink = params.get("litegs_alpha_shrink", 0.95)
+    try:
+        alpha_shrink = float(alpha_shrink)
+    except Exception:
+        alpha_shrink = 0.95
+    if alpha_shrink <= 0:
+        alpha_shrink = 0.95
+    training_summary["alpha_shrink"] = alpha_shrink
+    _patch_litegs_opacity_decay(alpha_shrink)
+
+    start_checkpoint = None
+    if resume:
+        ckpt_path = _find_latest_litegs_checkpoint(model_root)
+        if ckpt_path:
+            start_checkpoint = str(ckpt_path)
+            logger.info("Resuming LiteGS from %s", ckpt_path)
+        else:
+            logger.info("LiteGS resume requested but no checkpoints found; starting fresh")
+
+    litegs_start = time.time()
+    try:
+        litegs_training.start(lp, op, pp, dp, [], [], [], start_checkpoint)
+    except Exception as exc:
+        logger.error("LiteGS training failed: %s", exc, exc_info=True)
+        update_status(project_dir, "failed", error=str(exc), stage="training", message=str(exc))
+        raise
+
+    if stop_flag.exists():
+        logger.info("Stop requested after LiteGS training finished")
+        return 0
+
+    update_status(
+        project_dir,
+        "processing",
+        stage="training",
+        stage_progress=85,
+        message=f"✅ {engine_label} training complete",
+        device=device_label,
+    )
+
+    _export_litegs_outputs(model_root, output_dir, colmap_sparse_root, training_summary)
+
+    litegs_end = time.time()
+    update_status(
+        project_dir,
+        "processing",
+        stage="export",
+        stage_progress=100,
+        message="✅ LiteGS export complete",
+        timing={"start": litegs_start, "end": litegs_end, "elapsed": litegs_end - litegs_start},
+        device=device_label,
+    )
+
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description="Gaussian Splatting Worker")
     parser.add_argument("project_id", help="Project ID")
@@ -749,6 +1028,10 @@ def main():
     params = dict(args.params or {})
     if "mode" not in params:
         params["mode"] = args.mode
+    engine = params.get("engine", "gsplat")
+    if engine not in {"gsplat", "litegs"}:
+        engine = "gsplat"
+    params["engine"] = engine
 
     project_dir = Path(args.data_dir) / args.project_id
     image_dir = project_dir / "images"
@@ -796,6 +1079,7 @@ def main():
                 stage=resize_stage,
                 stage_progress=2 if resize_stage == "training" else 5,
                 message=f"📐 Resizing input images to ≤ {images_max_size}px...",
+                engine=engine,
             )
             try:
                 active_image_dir, resize_stats = prepare_training_images(image_dir, project_dir, images_max_size)
@@ -815,7 +1099,7 @@ def main():
                 active_image_dir = image_dir
         
         if stage == "colmap_only":
-            update_status(project_dir, "processing", progress=1, stage="colmap", message="🚀 Starting COLMAP structure-from-motion pipeline...")
+            update_status(project_dir, "processing", progress=1, stage="colmap", message="🚀 Starting COLMAP structure-from-motion pipeline...", engine=engine)
             colmap_dir = run_colmap(active_image_dir, output_dir, params)
             logger.info("COLMAP completed")
             # Mark COLMAP as completed for frontend tick/green
@@ -829,21 +1113,29 @@ def main():
                 colmap_dir = colmap_dir / "0"
             elif not (colmap_dir).exists():
                 raise RuntimeError("Sparse model not found. Run COLMAP first.")
-            msg = "🎯 Starting Gaussian Splatting training..."
-            update_status(project_dir, "processing", progress=55, stage="training", message=msg)
-            stop_reason = run_gsplat_training(active_image_dir, colmap_dir, output_dir, params, resume=resume)
+            trainer_label = "LiteGS" if engine == "litegs" else "Gaussian Splatting"
+            msg = f"🎯 Starting {trainer_label} training..."
+            update_status(project_dir, "processing", progress=55, stage="training", message=msg, engine=engine)
+            if engine == "litegs":
+                stop_reason = run_litegs_training(active_image_dir, colmap_dir, output_dir, params, resume=resume)
+            else:
+                stop_reason = run_gsplat_training(active_image_dir, colmap_dir, output_dir, params, resume=resume)
         else:
             # Full pipeline
-            update_status(project_dir, "processing", progress=1, stage="colmap", message="🚀 Starting full pipeline - Running COLMAP structure-from-motion...")
+            update_status(project_dir, "processing", progress=1, stage="colmap", message="🚀 Starting full pipeline - Running COLMAP structure-from-motion...", engine=engine)
             colmap_dir = run_colmap(active_image_dir, output_dir, params)
             logger.info("COLMAP completed")
 
             # Always use outputs/sparse/0 if it exists, else outputs/sparse
             if (colmap_dir / "0").exists():
                 colmap_dir = colmap_dir / "0"
-            msg = "🎯 Starting Gaussian Splatting training..."
-            update_status(project_dir, "processing", progress=55, stage="training", message=msg)
-            stop_reason = run_gsplat_training(active_image_dir, colmap_dir, output_dir, params, resume=resume)
+            trainer_label = "LiteGS" if engine == "litegs" else "Gaussian Splatting"
+            msg = f"🎯 Starting {trainer_label} training..."
+            update_status(project_dir, "processing", progress=55, stage="training", message=msg, engine=engine)
+            if engine == "litegs":
+                stop_reason = run_litegs_training(active_image_dir, colmap_dir, output_dir, params, resume=resume)
+            else:
+                stop_reason = run_gsplat_training(active_image_dir, colmap_dir, output_dir, params, resume=resume)
 
         if stop_reason:
             # If stopped, set status to 'stopped' and include step info in message

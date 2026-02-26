@@ -1,0 +1,27 @@
+diff --git a/litegs/submodules/fused_ssim/setup.py b/litegs/submodules/fused_ssim/setup.py
+index 9745982..9d00a19 100644
+--- a/litegs/submodules/fused_ssim/setup.py
++++ b/litegs/submodules/fused_ssim/setup.py
+@@ -4,6 +4,8 @@ import torch
+ import sys
+ import os
+ 
++FORCE_CUDA = os.environ.get("FUSED_SSIM_FORCE_CUDA", "0") == "1"
++
+ # Force unbuffered output
+ os.environ['PYTHONUNBUFFERED'] = '1'
+ sys.stderr.reconfigure(line_buffering=True)
+@@ -74,8 +76,11 @@ def configure_xpu():
+     return CppExtension, "ssim_sycl.cpp", "fused_ssim_xpu", compiler_args, link_args, detected_arch
+ 
+ 
+-# Detect backend
+-if torch.cuda.is_available():
++# Detect backend (allow override when running without visible GPUs)
++if FORCE_CUDA:
++    log("FUSED_SSIM_FORCE_CUDA=1 detected – forcing CUDA build path.")
++    extension_type, extension_file, build_name, compiler_args, link_args, detected_arch = configure_cuda()
++elif torch.cuda.is_available():
+     extension_type, extension_file, build_name, compiler_args, link_args, detected_arch = configure_cuda()
+ elif torch.mps.is_available():
+     extension_type, extension_file, build_name, compiler_args, link_args, detected_arch = configure_mps()
