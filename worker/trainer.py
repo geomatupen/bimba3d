@@ -100,6 +100,12 @@ class GsplatTrainer:
         pruning_enabled: bool = False,
         pruning_policy: str = "opacity",
         pruning_weights: dict | None = None,
+        densify_from_iter: int | None = None,
+        densify_until_iter: int | None = None,
+        densification_interval: int | None = None,
+        opacity_reset_interval: int | None = None,
+        opacity_threshold: float | None = None,
+        lambda_dssim: float | None = None,
     ):
         set_random_seed(42)
         
@@ -141,6 +147,37 @@ class GsplatTrainer:
         logger.info(f"Pruning enabled={self.pruning_enabled}, policy={self.pruning_policy}, weights={self.pruning_weights}")
         self.stop_reason: Optional[str] = None
         self.last_tuning_info = None  # Track last tuning action for status updates
+
+        self.densify_from_iter = max(0, int(densify_from_iter)) if densify_from_iter is not None else 500
+        default_stop = 15_000 if densify_until_iter is None else int(densify_until_iter)
+        self.densify_until_iter = max(self.densify_from_iter + 1, default_stop)
+        interval_value = densification_interval if densification_interval is not None else 100
+        self.densification_interval = max(1, int(interval_value))
+        reset_every_value = opacity_reset_interval if opacity_reset_interval is not None else 3000
+        self.opacity_reset_interval = max(self.densification_interval, int(reset_every_value))
+
+        default_opacity_threshold = 0.005
+        try:
+            self.opacity_threshold = float(opacity_threshold) if opacity_threshold is not None else default_opacity_threshold
+        except Exception:
+            self.opacity_threshold = default_opacity_threshold
+        if self.opacity_threshold <= 0:
+            self.opacity_threshold = default_opacity_threshold
+
+        default_lambda = 0.2
+        try:
+            self.lambda_dssim = float(lambda_dssim) if lambda_dssim is not None else default_lambda
+        except Exception:
+            self.lambda_dssim = default_lambda
+        self.lambda_dssim = min(1.0, max(0.0, self.lambda_dssim))
+        logger.info(
+            "Densify schedule configured: start=%d, stop=%d, interval=%d, reset_every=%d",
+            self.densify_from_iter,
+            self.densify_until_iter,
+            self.densification_interval,
+            self.opacity_reset_interval,
+        )
+        logger.info("Trainer configured opacity_threshold=%f, lambda_dssim=%f", self.opacity_threshold, self.lambda_dssim)
         
         # Setup directories
         self.ckpt_dir = output_dir / "checkpoints"
@@ -187,14 +224,14 @@ class GsplatTrainer:
         # Setup training strategy
         self.strategy_config = dict(
             verbose=True,
-            prune_opa=0.005,
+            prune_opa=self.opacity_threshold,
             grow_grad2d=self.tuning_params["densify_threshold"],
             grow_scale3d=0.01,
             prune_scale3d=0.1,
-            refine_start_iter=500,
-            refine_stop_iter=15_000,
-            reset_every=3000,
-            refine_every=100,
+            refine_start_iter=self.densify_from_iter,
+            refine_stop_iter=self.densify_until_iter,
+            reset_every=self.opacity_reset_interval,
+            refine_every=self.densification_interval,
         )
         self.strategy = DefaultStrategy(**self.strategy_config)
         self.strategy.check_sanity(self.splats, self.optimizers)
@@ -838,7 +875,8 @@ class GsplatTrainer:
             
             l1_loss = F.l1_loss(colors, pixels)
             ssim_loss = 1.0 - self._ssim(colors, pixels)
-            loss = 0.8 * l1_loss + 0.2 * ssim_loss
+            l1_weight = 1.0 - self.lambda_dssim
+            loss = (l1_weight * l1_loss) + (self.lambda_dssim * ssim_loss)
             
             # Backward (use GradScaler when AMP enabled)
             if self.amp_enabled and self.scaler is not None:
