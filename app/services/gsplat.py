@@ -90,17 +90,29 @@ def create_output_artifacts(output_dir: Path, colmap_model_dir: Path, params: di
     metadata = create_metadata(colmap_model_dir)
     # Attach training config used (merge defaults with overrides)
     p = params or {}
+    # --- ORIGINAL KERBL PARAMETERS ---
     metadata["training_config"] = {
-        "use_demo_mode": False,
-        "max_steps": int(p.get("max_steps", 300)),
-        "batch_size": int(p.get("batch_size", 1)),
-        "eval_interval": int(p.get("eval_interval", 1000)),
-        "save_interval": int(p.get("save_interval", 150)),
-        "densify_from_iter": int(p.get("densify_from_iter", 500)),
-        "densify_until_iter": int(p.get("densify_until_iter", 15000)),
-        "densification_interval": int(p.get("densification_interval", 100)),
-        "opacity_threshold": float(p.get("opacity_threshold", 0.005)),
-        "lambda_dssim": float(p.get("lambda_dssim", 0.2)),
+        "max_steps": int(p.get("max_steps", 300)),  # [original]
+        "batch_size": int(p.get("batch_size", 1)),  # [original]
+        "eval_interval": int(p.get("eval_interval", 1000)),  # [original]
+        "save_interval": int(p.get("save_interval", 150)),  # [original]
+        "densify_from_iter": int(p.get("densify_from_iter", 500)),  # [original]
+        "densify_until_iter": int(p.get("densify_until_iter", 15000)),  # [original]
+        "densification_interval": int(p.get("densification_interval", 100)),  # [original]
+        "opacity_threshold": float(p.get("opacity_threshold", 0.005)),  # [original]
+        "lambda_dssim": float(p.get("lambda_dssim", 0.2)),  # [original]
+        # --- CUSTOM PARAMETERS ---
+        "gsplat_max_gaussians": p.get("gsplat_max_gaussians"),  # [custom]
+        "gsplat_hard_cap": p.get("gsplat_hard_cap"),  # [custom]
+        "amp": p.get("amp"),  # [custom]
+        "auto_early_stop": p.get("auto_early_stop"),  # [custom]
+        "pruning_enabled": p.get("pruning_enabled"),  # [custom]
+        "pruning_policy": p.get("pruning_policy"),  # [custom]
+        "pruning_weights": p.get("pruning_weights"),  # [custom]
+        "litegs_target_primitives": p.get("litegs_target_primitives"),  # [custom]
+        "litegs_alpha_shrink": p.get("litegs_alpha_shrink"),  # [custom]
+        "sparse_preference": p.get("sparse_preference"),  # [custom]
+        "images_max_size": p.get("images_max_size"),  # [custom]
     }
     metadata_path = output_dir / "metadata.json"
     with open(metadata_path, "w") as f:

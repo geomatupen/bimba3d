@@ -63,36 +63,31 @@ class ProcessParams(BaseModel):
     stage: Optional[str] = None
     # Resume from last checkpoint if available
     resume: Optional[bool] = None
-    # Training parameters (gsplat)
-    max_steps: Optional[int] = None
-    batch_size: Optional[int] = None
-    eval_interval: Optional[int] = None
-    save_interval: Optional[int] = None
-    densify_from_iter: Optional[int] = None
-    densify_until_iter: Optional[int] = None
-    densification_interval: Optional[int] = None
-    opacity_threshold: Optional[float] = None
-    lambda_dssim: Optional[float] = None
-    # Live export controls
-    splat_export_interval: Optional[int] = None
-    png_export_interval: Optional[int] = None
-    auto_early_stop: Optional[bool] = None
-    # COLMAP tuning options (passed through to COLMAP step)
-    colmap: Optional[dict] = None
-    # Trainer init limit: maximum number of Gaussians to initialize from COLMAP points
-    gsplat_max_gaussians: Optional[int] = None
-    # Hard cap enforcement and advanced trainer controls
-    gsplat_hard_cap: Optional[int] = None
-    amp: Optional[bool] = None
-    pruning_enabled: Optional[bool] = None
-    pruning_policy: Optional[str] = None
-    pruning_weights: Optional[dict] = None
-    images_max_size: Optional[int] = None
-    # LiteGS-specific knobs
-    litegs_target_primitives: Optional[int] = None
-    litegs_alpha_shrink: Optional[float] = None
-    # Sparse selection preference ("best" or specific folder name like "0")
-    sparse_preference: Optional[str] = None
+    # --- ORIGINAL KERBL PARAMETERS ---
+    max_steps: Optional[int] = None  # [original]
+    batch_size: Optional[int] = None  # [original]
+    eval_interval: Optional[int] = None  # [original]
+    save_interval: Optional[int] = None  # [original]
+    densify_from_iter: Optional[int] = None  # [original]
+    densify_until_iter: Optional[int] = None  # [original]
+    densification_interval: Optional[int] = None  # [original]
+    opacity_threshold: Optional[float] = None  # [original]
+    lambda_dssim: Optional[float] = None  # [original]
+    splat_export_interval: Optional[int] = None  # [original]
+    png_export_interval: Optional[int] = None  # [original]
+    # --- CUSTOM PARAMETERS ---
+    auto_early_stop: Optional[bool] = None  # [custom]
+    colmap: Optional[dict] = None  # [custom]
+    gsplat_max_gaussians: Optional[int] = None  # [custom]
+    gsplat_hard_cap: Optional[int] = 0  # [custom] Default: no cap
+    amp: Optional[bool] = None  # [custom]
+    pruning_enabled: Optional[bool] = None  # [custom]
+    pruning_policy: Optional[str] = None  # [custom]
+    pruning_weights: Optional[dict] = None  # [custom]
+    images_max_size: Optional[int] = None  # [custom]
+    litegs_target_primitives: Optional[int] = None  # [custom]
+    litegs_alpha_shrink: Optional[float] = None  # [custom]
+    sparse_preference: Optional[str] = None  # [custom]
 
 
 class EvaluationMetrics(BaseModel):

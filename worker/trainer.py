@@ -85,27 +85,29 @@ class GsplatTrainer:
         image_dir: Path,
         colmap_dir: Path,
         output_dir: Path,
-        mode: str = "baseline",
-        max_steps: int = 300,
-        device: str = "cuda",
-        progress_callback: Optional[Callable] = None,
-        splat_export_interval: Optional[int] = 150,
-        png_export_interval: Optional[int] = 50,
-        auto_early_stop: bool = False,
-        stop_checker: Optional[Callable[[], bool]] = None,
-        resume: bool = False,
-        max_init_gaussians: int | None = 20000,
-        max_gaussians_cap: int | None = None,
-        amp_enabled: bool = False,
-        pruning_enabled: bool = False,
-        pruning_policy: str = "opacity",
-        pruning_weights: dict | None = None,
-        densify_from_iter: int | None = None,
-        densify_until_iter: int | None = None,
-        densification_interval: int | None = None,
-        opacity_reset_interval: int | None = None,
-        opacity_threshold: float | None = None,
-        lambda_dssim: float | None = None,
+        # --- ORIGINAL KERBL PARAMETERS ---
+        mode: str = "baseline",  # [custom]
+        max_steps: int = 300,  # [original]
+        splat_export_interval: Optional[int] = 150,  # [original]
+        png_export_interval: Optional[int] = 50,  # [original]
+        densify_from_iter: int | None = None,  # [original]
+        densify_until_iter: int | None = None,  # [original]
+        densification_interval: int | None = None,  # [original]
+        opacity_threshold: float | None = None,  # [original]
+        lambda_dssim: float | None = None,  # [original]
+        # --- CUSTOM PARAMETERS ---
+        device: str = "cuda",  # [custom]
+        progress_callback: Optional[Callable] = None,  # [custom]
+        auto_early_stop: bool = False,  # [custom]
+        stop_checker: Optional[Callable[[], bool]] = None,  # [custom]
+        resume: bool = False,  # [custom]
+        max_init_gaussians: int | None = 20000,  # [custom]
+        max_gaussians_cap: int | None = None,  # [custom]
+        amp_enabled: bool = False,  # [custom]
+        pruning_enabled: bool = False,  # [custom]
+        pruning_policy: str = "opacity",  # [custom]
+        pruning_weights: dict | None = None,  # [custom]
+        opacity_reset_interval: int | None = None,  # [custom]
     ):
         set_random_seed(42)
         
