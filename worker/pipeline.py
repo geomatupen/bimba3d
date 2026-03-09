@@ -61,7 +61,7 @@ def run_full_pipeline(project_id: str, params: dict | None = None):
             # Hint that image may be pulled/build required
             try:
                 import subprocess as _sp
-                _sp.run(["docker", "image", "inspect", "websplat-worker:latest"], check=True, capture_output=True)
+                _sp.run(["docker", "image", "inspect", "bimba3d-worker:latest"], check=True, capture_output=True)
                 status.update_status(
                     project_id,
                     "processing",

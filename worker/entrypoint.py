@@ -960,7 +960,7 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
     # Extract parameters
     p = params or {}
     mode = p.get("mode", "baseline")  # "baseline" or "modified"
-    max_steps = p.get("max_steps", 300)
+    max_steps = int(p.get("max_steps", 30_000))
     project_dir = base_output_dir.parent
     training_image_dir = image_dir
     images_max_size = normalize_max_size(p.get("images_max_size"))
@@ -1053,8 +1053,8 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
         timing={"start": gsplat_start},
     )
 
-    # Baseline mode must stay native gsplat: ignore custom research knobs.
-    is_modified_mode = mode == "modified"
+    # Frontend-provided parameters are honored for both baseline and modified modes.
+    # The `mode` flag only controls algorithmic behavior inside the trainer (e.g. tuner logic).
 
     trainer = GsplatTrainer(
         image_dir=training_image_dir,
@@ -1063,17 +1063,16 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
         mode=mode,
         max_steps=max_steps,
         eval_interval=p.get("eval_interval", 1000),
-        max_init_gaussians=p.get("gsplat_max_gaussians", None) if is_modified_mode else None,
-        max_gaussians_cap=p.get("gsplat_hard_cap", None) if is_modified_mode else None,
-        amp_enabled=bool(p.get("amp", False)) if is_modified_mode else False,
-        pruning_enabled=bool(p.get("pruning_enabled", False)) if is_modified_mode else False,
-        pruning_policy=p.get("pruning_policy", "opacity") if is_modified_mode else "opacity",
-        pruning_weights=p.get("pruning_weights", {}) if is_modified_mode else {},
+        max_init_gaussians=p.get("gsplat_max_gaussians", None),
+        amp_enabled=bool(p.get("amp", False)),
+        pruning_enabled=bool(p.get("pruning_enabled", False)),
+        pruning_policy=p.get("pruning_policy", "opacity"),
+        pruning_weights=p.get("pruning_weights", {}),
         progress_callback=progress_callback,
         splat_export_interval=p.get("splat_export_interval"),
         png_export_interval=p.get("png_export_interval"),
         checkpoint_interval=p.get("save_interval"),
-        auto_early_stop=bool(p.get("auto_early_stop", False)) if is_modified_mode else False,
+        auto_early_stop=bool(p.get("auto_early_stop", False)),
         stop_checker=stop_checker,
         resume=resume,
         densify_from_iter=p.get("densify_from_iter"),
@@ -1082,6 +1081,12 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
         opacity_reset_interval=p.get("opacity_reset_interval"),
         opacity_threshold=p.get("opacity_threshold"),
         lambda_dssim=p.get("lambda_dssim"),
+        position_lr_init=float(p.get("position_lr_init", 1.6e-4)),
+        position_lr_final=float(p.get("position_lr_final", 1.6e-6)),
+        position_lr_delay_mult=float(p.get("position_lr_delay_mult", 0.01)),
+        position_lr_max_steps=int(p.get("position_lr_max_steps", max_steps)),
+        test_iterations=p.get("test_iterations"),
+        save_iterations=p.get("save_iterations"),
     )
     
     logger.info(f"Training mode: {mode}")

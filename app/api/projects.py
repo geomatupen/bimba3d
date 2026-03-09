@@ -481,6 +481,17 @@ def process_project(project_id: str, params: ProcessParams | None = Body(None)):
             raise HTTPException(status_code=400, detail=f"Invalid training engine: {engine}")
         params_payload["engine"] = engine
 
+        # Prevent overlapping runs for the same project.
+        running_workers = colmap.get_project_worker_container_ids(project_id)
+        if running_workers:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "A worker is already running for this project. "
+                    "Stop it first or wait for it to finish."
+                ),
+            )
+
         # Update status to processing with the resolved engine
         status.update_status(project_id, "processing", progress=5, engine=engine)
 
@@ -546,6 +557,14 @@ def request_stop(project_id: str):
 
         stop_flag = project_dir / "stop_requested"
         stop_flag.write_text("stop")
+
+        # Also force-stop docker worker container if one is still running.
+        try:
+            stopped = colmap.stop_project_worker_containers(project_id)
+            if stopped:
+                logger.info("Stopped %d active worker container(s) for project %s", stopped, project_id)
+        except Exception as exc:
+            logger.warning("Failed to force-stop worker container for %s: %s", project_id, exc)
 
         # Mark status so the UI can reflect stopping state
         status.update_status(

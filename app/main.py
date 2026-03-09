@@ -35,10 +35,14 @@ def mark_interrupted_projects():
     that were interrupted by a backend restart or crash.
     """
     note = "Backend restarted — processing interrupted. Please resume when ready."
+    from app.services.colmap import stop_project_worker_containers
     for proj_dir in DATA_DIR.iterdir():
         try:
             if not proj_dir.is_dir():
                 continue
+            stopped = stop_project_worker_containers(proj_dir.name)
+            if stopped:
+                logging.info("Stopped %d stale worker container(s) for %s", stopped, proj_dir.name)
             status_file = proj_dir / "status.json"
             if not status_file.exists():
                 continue

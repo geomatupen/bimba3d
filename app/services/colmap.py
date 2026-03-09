@@ -11,13 +11,74 @@ logger = logging.getLogger(__name__)
 USE_DOCKER = os.getenv("USE_DOCKER_WORKER", "true").lower() == "true"
 
 
+def _worker_container_name(project_id: str) -> str:
+    return f"bimba3d-worker-{project_id}"
+
+
+def _find_project_worker_containers(project_id: str) -> list[str]:
+    """Return running container IDs that belong to the given project."""
+    container_ids: list[str] = []
+    label = f"com.bimba3d.project_id={project_id}"
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "-q", "--filter", f"label={label}"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        container_ids.extend([line.strip() for line in result.stdout.splitlines() if line.strip()])
+    except Exception:
+        pass
+
+    # Backward compatibility for older workers launched without labels.
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "-q", "--filter", f"name={_worker_container_name(project_id)}"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        for line in result.stdout.splitlines():
+            cid = line.strip()
+            if cid and cid not in container_ids:
+                container_ids.append(cid)
+    except Exception:
+        pass
+
+    return container_ids
+
+
+def stop_project_worker_containers(project_id: str) -> int:
+    """Stop any running docker worker containers associated with a project."""
+    stopped = 0
+    for cid in _find_project_worker_containers(project_id):
+        try:
+            subprocess.run(["docker", "stop", cid], check=True, capture_output=True, text=True)
+            stopped += 1
+        except Exception as exc:
+            logger.warning("Failed to stop worker container %s for project %s: %s", cid, project_id, exc)
+    return stopped
+
+
+def get_project_worker_container_ids(project_id: str) -> list[str]:
+    """List running worker container IDs associated with a project."""
+    return _find_project_worker_containers(project_id)
+
+
 def run_colmap_docker(project_id: str, params: dict = None) -> None:
     """
     Run COLMAP via Docker worker.
     """
     from app.config import DATA_DIR
     
-    params_json = json.dumps(params or {})
+    worker_params = dict(params or {})
+
+    # Keep engine-specific payloads minimal to avoid confusion in logs/runtime.
+    if worker_params.get("engine") == "gsplat":
+        worker_params.pop("litegs_target_primitives", None)
+        worker_params.pop("litegs_alpha_shrink", None)
+
+    params_json = json.dumps(worker_params)
     # DATA_DIR is now /path/to/websplat-backend/data/projects
     # Mount parent: /path/to/websplat-backend/data -> /data
     data_dir = DATA_DIR.parent
@@ -37,6 +98,9 @@ def run_colmap_docker(project_id: str, params: dict = None) -> None:
     cmd = [
         "docker", "run", "--rm",
         *user_flag,
+        "--name", _worker_container_name(project_id),
+        "--label", "com.bimba3d.service=worker",
+        "--label", f"com.bimba3d.project_id={project_id}",
         "--gpus", "all",  # Enable GPU access
         # Mount project data and a writable cache into the container so PyTorch
         # can build extensions without trying to write to '/.cache' inside root.

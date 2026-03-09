@@ -74,6 +74,35 @@ from .colmap_loader import COLMAPDataset
 logger = logging.getLogger(__name__)
 
 
+def get_expon_lr_func(
+    lr_init: float,
+    lr_final: float,
+    lr_delay_steps: int = 0,
+    lr_delay_mult: float = 1.0,
+    max_steps: int = 1_000_000,
+):
+    """Kerbl-style exponential LR schedule with optional delayed warmup multiplier."""
+
+    def helper(step: int) -> float:
+        if step < 0:
+            return 0.0
+        if lr_init == 0.0 and lr_final == 0.0:
+            return 0.0
+
+        if lr_delay_steps > 0:
+            delay_rate = lr_delay_mult + (1.0 - lr_delay_mult) * math.sin(
+                0.5 * math.pi * min(max(step / lr_delay_steps, 0.0), 1.0)
+            )
+        else:
+            delay_rate = 1.0
+
+        t = min(max(step / max_steps, 0.0), 1.0)
+        log_lerp = math.exp(math.log(lr_init) * (1.0 - t) + math.log(lr_final) * t)
+        return delay_rate * log_lerp
+
+    return helper
+
+
 class GsplatTrainer:
     """
     Gaussian Splatting trainer based on upstream gsplat implementation.
@@ -87,7 +116,7 @@ class GsplatTrainer:
         output_dir: Path,
         # --- ORIGINAL KERBL PARAMETERS ---
         mode: str = "baseline",  # [custom]
-        max_steps: int = 300,  # [original]
+        max_steps: int = 30_000,  # [original]
         eval_interval: Optional[int] = 1000,  # [original]
         splat_export_interval: Optional[int] = 150,  # [original]
         png_export_interval: Optional[int] = 50,  # [original]
@@ -97,6 +126,12 @@ class GsplatTrainer:
         densification_interval: int | None = None,  # [original]
         opacity_threshold: float | None = None,  # [original]
         lambda_dssim: float | None = None,  # [original]
+        position_lr_init: float = 1.6e-4,  # [original]
+        position_lr_final: float = 1.6e-6,  # [original]
+        position_lr_delay_mult: float = 0.01,  # [original]
+        position_lr_max_steps: int = 30_000,  # [original]
+        test_iterations: Optional[list[int]] = None,  # [original]
+        save_iterations: Optional[list[int]] = None,  # [original]
         # --- CUSTOM PARAMETERS ---
         device: str = "cuda",  # [custom]
         progress_callback: Optional[Callable] = None,  # [custom]
@@ -104,7 +139,6 @@ class GsplatTrainer:
         stop_checker: Optional[Callable[[], bool]] = None,  # [custom]
         resume: bool = False,  # [custom]
         max_init_gaussians: int | None = None,  # [custom]
-        max_gaussians_cap: int | None = None,  # [custom]
         amp_enabled: bool = False,  # [custom]
         pruning_enabled: bool = False,  # [custom]
         pruning_policy: str = "opacity",  # [custom]
@@ -119,6 +153,27 @@ class GsplatTrainer:
         self.mode = mode  # "baseline" or "modified"
         self.max_steps = max_steps
         self.eval_interval = int(eval_interval) if eval_interval is not None else None
+        self.position_lr_init = float(position_lr_init)
+        self.position_lr_final = float(position_lr_final)
+        self.position_lr_delay_mult = float(position_lr_delay_mult)
+        self.position_lr_max_steps = int(position_lr_max_steps)
+        default_test_iterations = [7_000, 30_000]
+        default_save_iterations = [7_000, 30_000, int(self.max_steps)]
+        self.test_iterations = sorted(
+            {
+                int(v)
+                for v in (test_iterations if test_iterations is not None else default_test_iterations)
+                if int(v) > 0
+            }
+        )
+        self.save_iterations = sorted(
+            {
+                int(v)
+                for v in (save_iterations if save_iterations is not None else default_save_iterations)
+                if int(v) > 0
+            }
+        )
+
         self.device = device
         self.progress_callback = progress_callback
         self.splat_export_interval = splat_export_interval
@@ -130,11 +185,6 @@ class GsplatTrainer:
         # Maximum number of Gaussians to initialize from COLMAP points.
         # If None, use all points (may OOM for large scenes).
         self.max_init_gaussians = max_init_gaussians
-        # Hard cap for total Gaussians during training. If set (int), trainer will
-        # prune back to this cap whenever densification would exceed it.
-        # If None, no hard cap is enforced (unlimited growth governed only by strategy).
-        self.max_gaussians_cap = max_gaussians_cap
-        logger.info(f"Trainer configured max_gaussians_cap={self.max_gaussians_cap}")
         logger.info(f"Trainer configured max_init_gaussians={self.max_init_gaussians}")
         # AMP (automatic mixed precision) flag
         self.amp_enabled = bool(amp_enabled)
@@ -187,6 +237,18 @@ class GsplatTrainer:
             self.opacity_reset_interval,
         )
         logger.info("Trainer configured opacity_threshold=%f, lambda_dssim=%f", self.opacity_threshold, self.lambda_dssim)
+        logger.info(
+            "Position LR schedule: init=%g final=%g delay_mult=%g max_steps=%d",
+            self.position_lr_init,
+            self.position_lr_final,
+            self.position_lr_delay_mult,
+            self.position_lr_max_steps,
+        )
+        logger.info(
+            "Milestone defaults: test_iterations=%s save_iterations=%s",
+            self.test_iterations,
+            self.save_iterations,
+        )
         
         # Setup directories
         self.ckpt_dir = output_dir / "checkpoints"
@@ -236,11 +298,18 @@ class GsplatTrainer:
             prune_opa=self.opacity_threshold,
             grow_grad2d=self.tuning_params["densify_threshold"],
             grow_scale3d=0.01,
+            grow_scale2d=0.05,
             prune_scale3d=0.1,
+            prune_scale2d=0.15,
+            refine_scale2d_stop_iter=0,
             refine_start_iter=self.densify_from_iter,
             refine_stop_iter=self.densify_until_iter,
             reset_every=self.opacity_reset_interval,
             refine_every=self.densification_interval,
+            pause_refine_after_reset=0,
+            absgrad=False,
+            revised_opacity=False,
+            key_for_gradient="means2d",
         )
         self.strategy = DefaultStrategy(**self.strategy_config)
         self.strategy.check_sanity(self.splats, self.optimizers)
@@ -331,6 +400,14 @@ class GsplatTrainer:
             self.optimizers["means"], gamma=0.01 ** (1.0 / self.max_steps)
         )
 
+        self.position_lr_fn = get_expon_lr_func(
+            lr_init=self.position_lr_init * self.scene_scale * lr_scale,
+            lr_final=self.position_lr_final * self.scene_scale * lr_scale,
+            lr_delay_steps=0,
+            lr_delay_mult=self.position_lr_delay_mult,
+            max_steps=self.position_lr_max_steps,
+        )
+
     def _reset_strategy_state(self):
         """Rebuild gsplat strategy so its buffers stay in sync after pruning."""
         self.strategy = DefaultStrategy(**self.strategy_config)
@@ -341,75 +418,6 @@ class GsplatTrainer:
             logger.warning("Strategy sanity check failed; continuing with fresh state: %s", exc)
         self.strategy_state = self.strategy.initialize_state(scene_scale=self.scene_scale)
 
-    def _cap_gaussians(self, cap: int):
-        """Enforce a hard cap on the total number of Gaussians by pruning the
-        least-important Gaussians (lowest opacity) until the cap is satisfied.
-
-        This is a safety mechanism to prevent unbounded growth OOMs during
-        densification. After pruning we reinitialize the optimizers and sanity-check
-        the strategy.
-        """
-        try:
-            N = self.splats["means"].shape[0]
-            if cap is None or N <= cap:
-                return
-
-            # Compute importance according to pruning policy
-            with torch.no_grad():
-                # Default: opacity
-                if self.pruning_enabled and self.pruning_policy == "scale":
-                    # Use scale magnitude (exp of stored log-scales), take mean over 3 dims
-                    scales = torch.exp(self.splats["scales"]).view(N, -1)
-                    score = scales.mean(dim=1)
-                    # larger scale considered more important
-                    _, topk_idx = torch.topk(score, k=cap, largest=True)
-                    keep_idx = torch.sort(topk_idx).values
-                elif self.pruning_enabled and self.pruning_policy == "importance":
-                    # Composite importance score using configurable weights
-                    opac = torch.sigmoid(self.splats["opacities"]).view(-1)
-                    scales = torch.exp(self.splats["scales"]).view(N, -1)
-                    scale_mean = scales.mean(dim=1)
-                    # Normalize components
-                    opac_n = opac / (opac.max() + 1e-9)
-                    scale_n = scale_mean / (scale_mean.max() + 1e-9)
-                    # Age not currently tracked per-gaussian; placeholder zero vector
-                    age_n = torch.zeros_like(opac_n)
-                    w_op = float(self.pruning_weights.get("opacity", 1.0))
-                    w_scale = float(self.pruning_weights.get("scale", 0.0))
-                    w_age = float(self.pruning_weights.get("age", 0.0))
-                    score = (w_op * opac_n) + (w_scale * scale_n) + (w_age * age_n)
-                    _, topk_idx = torch.topk(score, k=cap, largest=True)
-                    keep_idx = torch.sort(topk_idx).values
-                else:
-                    # Fallback to opacity-based pruning
-                    opac = torch.sigmoid(self.splats["opacities"]).view(-1)
-                    _, topk_idx = torch.topk(opac, k=cap, largest=True)
-                    keep_idx = torch.sort(topk_idx).values
-
-                # Slice each parameter tensor to keep only selected indices
-                new_splats = {}
-                for key, param in self.splats.items():
-                    data = param.detach()
-                    if data.shape[0] != N:
-                        # Some bands may have different leading dims (safe copy)
-                        new_splats[key] = torch.nn.Parameter(data)
-                        continue
-
-                    # Handle sh bands that may have extra dims
-                    new_data = data[keep_idx].contiguous()
-                    new_splats[key] = torch.nn.Parameter(new_data)
-
-                # Replace ParameterDict
-                self.splats = torch.nn.ParameterDict(new_splats).to(self.device)
-
-                # Reinit optimizers and fully rebuild strategy dynamics
-                self._setup_optimizers()
-                self._reset_strategy_state()
-
-                logger.info(f"Hard cap enforced: pruned {N - cap} Gaussians, now {cap} remain")
-        except Exception as e:
-            logger.warning(f"Failed to enforce gaussians cap: {e}")
-    
     def rasterize(
         self,
         camtoworld: Tensor,
@@ -617,7 +625,7 @@ class GsplatTrainer:
         self.strategy.grow_grad2d = self.tuning_params["densify_threshold"]
 
     def _export_current_splats(self, step: int):
-        """Export current in-memory splats to a .splat snapshot for live viewing."""
+        """Export current in-memory splats to .splat and .ply snapshots for live viewing."""
         try:
             from gsplat.exporter import export_splats
 
@@ -648,10 +656,27 @@ class GsplatTrainer:
             splat_tmp.replace(splat_snapshot)
             self._update_latest_link(splat_snapshot, self.output_dir / "splats.splat")
 
+            # Export PLY alongside SPLAT so viewers can reliably fall back.
+            ply_snapshot = snapshot_dir / f"3dmodel_{step_tag}.ply"
+            ply_tmp = ply_snapshot.with_name(ply_snapshot.name + ".tmp")
+            export_splats(
+                means=means,
+                scales=scales,
+                quats=quats,
+                opacities=opacities,
+                sh0=sh0,
+                shN=shN,
+                format="ply",
+                save_to=str(ply_tmp),
+            )
+            ply_tmp.replace(ply_snapshot)
+            self._update_latest_link(ply_snapshot, self.output_dir / "splats.ply")
+
             logger.info(
-                "Live export complete at step %d (snapshot %s)",
+                "Live export complete at step %d (snapshots %s, %s)",
                 step,
                 splat_snapshot.name,
+                ply_snapshot.name,
             )
         except Exception as e:
             logger.warning("Live export failed at step %d: %s", step, e)
@@ -862,6 +887,7 @@ class GsplatTrainer:
         last_step = start_step
         
         for step in range(start_step, self.max_steps):
+            step_start = time.time()
             # Early exit if a stop signal was requested
             if self.stop_checker and self.stop_checker():
                 self.stop_reason = "manual_stop"
@@ -888,6 +914,7 @@ class GsplatTrainer:
             
             # Match upstream behavior: progressively unlock SH degree every 1000 steps.
             sh_degree_to_use = min(step // self.sh_degree_interval, self.sh_degree)
+            t_before_raster = time.time()
 
             # Forward pass (support AMP if enabled)
             if self.amp_enabled and self.scaler is not None:
@@ -908,6 +935,7 @@ class GsplatTrainer:
                     sh_degree_to_use=sh_degree_to_use,
                 )
             colors = colors[0]  # Remove batch dim
+            t_after_raster = time.time()
             
             # Compute loss (L1 + SSIM, same as upstream)
             self.strategy.step_pre_backward(
@@ -917,6 +945,7 @@ class GsplatTrainer:
                 step=step,
                 info=info,
             )
+            t_after_pre_backward = time.time()
             
             l1_loss = F.l1_loss(colors, pixels)
             ssim_loss = 1.0 - self._ssim(colors, pixels)
@@ -928,6 +957,7 @@ class GsplatTrainer:
                 self.scaler.scale(loss).backward()
             else:
                 loss.backward()
+            t_after_backward = time.time()
             
             # Store convergence data
             with torch.no_grad():
@@ -972,8 +1002,12 @@ class GsplatTrainer:
                 for optimizer in self.optimizers.values():
                     optimizer.step()
                     optimizer.zero_grad(set_to_none=True)
+            t_after_optim = time.time()
 
-            self.scheduler.step()
+            # Match Kerbl schedule: update means LR with delayed exponential profile.
+            means_lr = self.position_lr_fn(step + 1)
+            for param_group in self.optimizers["means"].param_groups:
+                param_group["lr"] = means_lr
             
             # Densification
             self.strategy.step_post_backward(
@@ -984,13 +1018,13 @@ class GsplatTrainer:
                 info=info,
                 packed=False,
             )
+            t_after_post_backward = time.time()
 
-            # Enforce hard cap on Gaussians (safety against unbounded growth)
-            if self.max_gaussians_cap is not None:
-                self._cap_gaussians(self.max_gaussians_cap)
             # Live exports for viewer refresh
             if self.splat_export_interval and step % self.splat_export_interval == 0 and step > 0:
                 self._export_current_splats(step)
+
+            t_after_exports = time.time()
 
             if self.png_export_interval and step % self.png_export_interval == 0 and step > 0:
                 self._save_preview_image(step, colors)
@@ -1003,13 +1037,31 @@ class GsplatTrainer:
                     f"L1: {l1_loss.item():.4f} | SSIM: {ssim_loss.item():.4f} | "
                     f"GS: {len(self.splats['means'])} | Time: {elapsed:.1f}s"
                 )
+
+                step_total = t_after_exports - step_start
+                logger.info(
+                    "Step timing %d | total=%.3fs raster=%.3fs pre=%.3fs back=%.3fs opt=%.3fs post=%.3fs export=%.3fs",
+                    step,
+                    step_total,
+                    t_after_raster - t_before_raster,
+                    t_after_pre_backward - t_after_raster,
+                    t_after_backward - t_after_pre_backward,
+                    t_after_optim - t_after_backward,
+                    t_after_post_backward - t_after_optim,
+                    t_after_exports - t_after_post_backward,
+                )
                 
                 if self.progress_callback:
                     progress = int((step / self.max_steps) * 100)
                     self.progress_callback(step, progress, loss.item(), self.last_tuning_info)
 
             # Periodic evaluation (native-style cadence control)
-            if self.eval_interval and step > 0 and step % self.eval_interval == 0:
+            iter_num = step + 1
+            should_eval = (
+                (self.eval_interval and step > 0 and step % self.eval_interval == 0)
+                or (not self.eval_interval and iter_num in self.test_iterations)
+            )
+            if should_eval:
                 self._record_periodic_eval(step)
 
             # Auto early-stop (plateau detection) if enabled
@@ -1024,9 +1076,13 @@ class GsplatTrainer:
                     break
             
             # Save checkpoints on configured cadence and always at final step.
-            if (
+            should_checkpoint = (
                 (self.checkpoint_interval and step > 0 and step % self.checkpoint_interval == 0)
+                or (not self.checkpoint_interval and iter_num in self.save_iterations)
                 or step == self.max_steps - 1
+            )
+            if (
+                should_checkpoint
             ):
                 self._save_checkpoint(step)
 

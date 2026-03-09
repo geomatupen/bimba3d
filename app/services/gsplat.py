@@ -41,7 +41,7 @@ def run_gsplat(image_dir: Path, colmap_sparse: Path, output_dir: Path, params: d
             "--image_path", str(image_dir),
             "--colmap_path", str(colmap_model_dir),
             "--output_dir", str(output_dir),
-            "--max_steps", str(p.get("max_steps", 300)),
+            "--max_steps", str(p.get("max_steps", 30000)),
             "--batch_size", str(p.get("batch_size", 1)),
             "--eval_interval", str(p.get("eval_interval", 1000)),
             "--save_interval", str(p.get("save_interval", 150)),
@@ -92,7 +92,7 @@ def create_output_artifacts(output_dir: Path, colmap_model_dir: Path, params: di
     p = params or {}
     # --- ORIGINAL KERBL PARAMETERS ---
     metadata["training_config"] = {
-        "max_steps": int(p.get("max_steps", 300)),  # [original]
+        "max_steps": int(p.get("max_steps", 30000)),  # [original]
         "batch_size": int(p.get("batch_size", 1)),  # [original]
         "eval_interval": int(p.get("eval_interval", 1000)),  # [original]
         "save_interval": int(p.get("save_interval", 150)),  # [original]
@@ -103,7 +103,6 @@ def create_output_artifacts(output_dir: Path, colmap_model_dir: Path, params: di
         "lambda_dssim": float(p.get("lambda_dssim", 0.2)),  # [original]
         # --- CUSTOM PARAMETERS ---
         "gsplat_max_gaussians": p.get("gsplat_max_gaussians"),  # [custom]
-        "gsplat_hard_cap": p.get("gsplat_hard_cap"),  # [custom]
         "amp": p.get("amp"),  # [custom]
         "auto_early_stop": p.get("auto_early_stop"),  # [custom]
         "pruning_enabled": p.get("pruning_enabled"),  # [custom]
@@ -307,7 +306,7 @@ def create_metadata(colmap_model_dir: Path) -> dict:
             "num_points": max(num_points, 0),
             "colmap_model": str(colmap_model_dir),
             "training_config": {
-                "max_steps": 300,
+                "max_steps": 30000,
                 "batch_size": 1,
                 "densification_interval": 100,
                 "splat_export_interval": 150,

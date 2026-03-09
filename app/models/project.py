@@ -79,7 +79,6 @@ class ProcessParams(BaseModel):
     auto_early_stop: Optional[bool] = None  # [custom]
     colmap: Optional[dict] = None  # [custom]
     gsplat_max_gaussians: Optional[int] = None  # [custom]
-    gsplat_hard_cap: Optional[int] = 0  # [custom] Default: no cap
     amp: Optional[bool] = None  # [custom]
     pruning_enabled: Optional[bool] = None  # [custom]
     pruning_policy: Optional[str] = None  # [custom]
