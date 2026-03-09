@@ -150,6 +150,7 @@ class GsplatTrainer:
         device: str = "cuda",  # [custom]
         progress_callback: Optional[Callable] = None,  # [custom]
         auto_early_stop: bool = False,  # [custom]
+        tune_end_step: int = 300,  # [custom]
         stop_checker: Optional[Callable[[], bool]] = None,  # [custom]
         resume: bool = False,  # [custom]
         max_init_gaussians: int | None = None,  # [custom]
@@ -194,6 +195,8 @@ class GsplatTrainer:
         self.png_export_interval = png_export_interval
         self.checkpoint_interval = int(checkpoint_interval) if checkpoint_interval is not None else None
         self.auto_early_stop = auto_early_stop
+        self.tune_start_step = 50
+        self.tune_end_step = max(self.tune_start_step, int(tune_end_step))
         self.stop_checker = stop_checker
         self.resume = resume
         # Maximum number of Gaussians to initialize from COLMAP points.
@@ -264,6 +267,7 @@ class GsplatTrainer:
         )
         logger.info("Trainer configured opacity_threshold=%f, lambda_dssim=%f", self.opacity_threshold, self.lambda_dssim)
         logger.info("Trainer configured densify_grad_threshold=%f", self.densify_grad_threshold)
+        logger.info("Adaptive tuning window: %d-%d", self.tune_start_step, self.tune_end_step)
         logger.info(
             "Position LR schedule: init=%g final=%g delay_mult=%g max_steps=%d",
             self.position_lr_init,
@@ -787,8 +791,8 @@ class GsplatTrainer:
                 metrics["convergence_speed"] = (early_loss - late_loss) / step
                 metrics["loss_reduction_percent"] = ((early_loss - late_loss) / early_loss) * 100
             
-            # Loss at fixed iterations (e.g., 1k, 5k, 10k)
-            for milestone in [1000, 5000, 10000, 20000]:
+            # Loss at fixed iterations (every 500 steps for comparison reporting).
+            for milestone in range(500, min(step, len(all_losses) - 1) + 1, 500):
                 if step >= milestone and milestone < len(all_losses):
                     metrics[f"loss_at_{milestone}"] = all_losses[milestone]
         
@@ -881,6 +885,7 @@ class GsplatTrainer:
         results = {
             "final_params": self.tuning_params,
             "tuning_history": self.tuning_history,
+            "tune_end_step": step,
             "scene_metadata": {
                 "scene_scale": self.scene_scale,
                 "num_images": num_images,
@@ -1003,13 +1008,13 @@ class GsplatTrainer:
             
             # Research intervention: Rule-Based Adaptive Tuner
             # Check every step in tuning window (first 200-300 iterations)
-            if self.mode == "modified" and step >= 50 and step <= 300:
+            if self.mode == "modified" and step >= self.tune_start_step and step <= self.tune_end_step:
                 # Only tune every 10 steps to avoid overhead
                 if step % 10 == 0:
                     updated = self.adaptive_tune_parameters(step)
                 
                 # Save tuning results at end of tuning phase
-                if step == 300:
+                if step == self.tune_end_step:
                     self.save_tuning_results(step)
             
             # Optimizer step (handle AMP stepping when enabled)
@@ -1137,6 +1142,7 @@ class GsplatTrainer:
         if self.mode == "modified":
             metadata["tuning_runs"] = self.tuner_runs
             metadata["final_tuning_params"] = self.tuning_params
+            metadata["tune_end_step"] = self.tune_end_step
 
         if self.stop_reason:
             metadata["stop_reason"] = self.stop_reason

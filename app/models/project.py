@@ -84,6 +84,7 @@ class ProcessParams(BaseModel):
     pruning_enabled: Optional[bool] = None  # [custom]
     pruning_policy: Optional[str] = None  # [custom]
     pruning_weights: Optional[dict] = None  # [custom]
+    tune_end_step: Optional[int] = None  # [custom]
     images_max_size: Optional[int] = None  # [custom]
     litegs_target_primitives: Optional[int] = None  # [custom]
     litegs_alpha_shrink: Optional[float] = None  # [custom]

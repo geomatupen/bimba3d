@@ -1702,14 +1702,15 @@ def get_experiment_summary(project_id: str, engine: str | None = Query(None)):
         metrics = {
             "convergence_speed": latest_eval.get("convergence_speed"),
             "final_loss": latest_eval.get("final_loss"),
-            "loss_at_1000": latest_eval.get("loss_at_1000"),
-            "loss_at_5000": latest_eval.get("loss_at_5000"),
-            "loss_at_10000": latest_eval.get("loss_at_10000"),
-            "loss_at_20000": latest_eval.get("loss_at_20000"),
             "lpips_mean": latest_eval.get("lpips_mean"),
             "sharpness_mean": latest_eval.get("sharpness_mean"),
             "num_gaussians": latest_eval.get("num_gaussians"),
         }
+        loss_milestones = {}
+        if isinstance(latest_eval, dict):
+            for k, v in latest_eval.items():
+                if isinstance(k, str) and k.startswith("loss_at_"):
+                    loss_milestones[k] = v
 
         if metadata and isinstance(metadata, dict):
             final_metrics = metadata.get("final_metrics") if isinstance(metadata.get("final_metrics"), dict) else {}
@@ -1736,10 +1737,18 @@ def get_experiment_summary(project_id: str, engine: str | None = Query(None)):
                 final_tuning_params = meta_final
 
         tuning_history_count = 0
+        tuning_history = []
+        tune_end_step = None
+        tune_end_params = {}
         if isinstance(tuning_results, dict):
-            tuning_history = tuning_results.get("tuning_history")
-            if isinstance(tuning_history, list):
+            maybe_tuning_history = tuning_results.get("tuning_history")
+            if isinstance(maybe_tuning_history, list):
+                tuning_history = maybe_tuning_history
                 tuning_history_count = len(tuning_history)
+            tune_end_step = tuning_results.get("tune_end_step")
+            maybe_final = tuning_results.get("final_params")
+            if isinstance(maybe_final, dict):
+                tune_end_params = maybe_final
 
         outputs = files.get_output_files(project_id)
         preview_url = None
@@ -1762,9 +1771,13 @@ def get_experiment_summary(project_id: str, engine: str | None = Query(None)):
             "tuning": {
                 "initial": initial_tuning_params,
                 "final": final_tuning_params,
+                "end_params": tune_end_params,
+                "end_step": tune_end_step if tune_end_step is not None else (metadata.get("tune_end_step") if isinstance(metadata, dict) else None),
                 "runs": metadata.get("tuning_runs") if isinstance(metadata, dict) else None,
                 "history_count": tuning_history_count,
+                "history": tuning_history,
             },
+            "loss_milestones": loss_milestones,
             "preview_url": preview_url,
             "eval_points": len(eval_history) if isinstance(eval_history, list) else 0,
         }

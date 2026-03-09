@@ -961,6 +961,8 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
     p = params or {}
     mode = p.get("mode", "baseline")  # "baseline" or "modified"
     max_steps = int(p.get("max_steps", 30_000))
+    tune_start_step = 50
+    tune_end_step = max(tune_start_step, int(p.get("tune_end_step", 300)))
     project_dir = base_output_dir.parent
     training_image_dir = image_dir
     images_max_size = normalize_max_size(p.get("images_max_size"))
@@ -989,7 +991,7 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
                 msg = f"✨ Training step {step}/{max_steps} - Optimizing quality (loss: {loss:.6f})"
             else:
                 msg = f"🎨 Training step {step}/{max_steps} - Final refinement (loss: {loss:.6f})"
-            if mode == "modified" and 50 <= step <= 300:
+            if mode == "modified" and tune_start_step <= step <= tune_end_step:
                 msg += " [Adaptive tuning active]"
             # Estimate elapsed and ETA for gsplat
             now = time.time()
@@ -1006,7 +1008,7 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
                 mode=mode,
                 currentStep=step,
                 maxSteps=max_steps,
-                tuning_active=(mode == "modified" and 50 <= step <= 300),
+                tuning_active=(mode == "modified" and tune_start_step <= step <= tune_end_step),
                 last_tuning=last_tuning,
                 stop_requested=requested_stop,
                 stage="training",
@@ -1073,6 +1075,7 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
         png_export_interval=p.get("png_export_interval"),
         checkpoint_interval=p.get("save_interval"),
         auto_early_stop=bool(p.get("auto_early_stop", False)),
+        tune_end_step=tune_end_step,
         stop_checker=stop_checker,
         resume=resume,
         densify_from_iter=p.get("densify_from_iter"),
