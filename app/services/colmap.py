@@ -105,17 +105,6 @@ def run_colmap_docker(project_id: str, params: dict = None) -> None:
     
     logger.info(f"Running Docker worker: {' '.join(cmd)}")
 
-    # Stream container output into the project's processing.log so the frontend
-    # can display live logs. Avoid capture_output which buffers large output
-    # and can cause deadlocks for long-running containers.
-    from app.services import storage as _storage
-    try:
-        project_dir = _storage.get_project_dir(project_id)
-        logs_file = project_dir / "processing.log"
-        logs_file.parent.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        logs_file = None
-
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
         assert proc.stdout is not None
@@ -125,12 +114,6 @@ def run_colmap_docker(project_id: str, params: dict = None) -> None:
                 logger.info(line)
             except Exception:
                 pass
-            if logs_file is not None:
-                try:
-                    with open(logs_file, 'a') as f:
-                        f.write(line + '\n')
-                except Exception:
-                    pass
         rc = proc.wait()
         if rc != 0:
             # If container was killed by OOM (137) provide a helpful status message

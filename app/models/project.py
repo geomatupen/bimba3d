@@ -65,6 +65,7 @@ class ProcessParams(BaseModel):
     resume: Optional[bool] = None
     # --- ORIGINAL KERBL PARAMETERS ---
     max_steps: Optional[int] = None  # [original]
+    log_interval: Optional[int] = None  # [custom]
     batch_size: Optional[int] = None  # [original]
     eval_interval: Optional[int] = None  # [original]
     save_interval: Optional[int] = None  # [original]

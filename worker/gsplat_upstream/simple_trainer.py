@@ -226,6 +226,8 @@ class Config:
 
     # Dump information to tensorboard every this steps
     tb_every: int = 100
+    # Callback cadence for external progress hooks (worker status/log snapshots)
+    progress_every: int = 100
     # Save training images to tensorboard
     tb_save_image: bool = False
 
@@ -771,7 +773,8 @@ class Runner:
 
         # Training loop.
         global_tic = time.time()
-        pbar = tqdm.tqdm(range(init_step, max_steps))
+        disable_tqdm = bool(getattr(cfg, "disable_tqdm", False))
+        pbar = tqdm.tqdm(range(init_step, max_steps), disable=disable_tqdm)
         stopped_step = None
         for step in pbar:
             if callable(stop_checker) and stop_checker():
@@ -941,10 +944,16 @@ class Runner:
                     self.writer.add_image("train/render", canvas, step)
                 self.writer.flush()
 
-            if callable(progress_callback) and world_rank == 0 and (step % 100 == 0 or step == max_steps - 1):
+            progress_every = max(1, int(getattr(cfg, "progress_every", 100)))
+            current_step = int(step + 1)
+            if callable(progress_callback) and world_rank == 0 and (
+                current_step == 1
+                or current_step == max_steps
+                or current_step % progress_every == 0
+            ):
                 try:
                     progress_callback(
-                        step=int(step + 1),
+                        step=current_step,
                         max_steps=int(max_steps),
                         loss=float(loss.item()),
                     )
@@ -1269,7 +1278,12 @@ class Runner:
         video_dir = f"{cfg.result_dir}/videos"
         os.makedirs(video_dir, exist_ok=True)
         writer = imageio.get_writer(f"{video_dir}/traj_{step}.mp4", fps=30)
-        for i in tqdm.trange(len(camtoworlds_all), desc="Rendering trajectory"):
+        disable_tqdm = bool(getattr(cfg, "disable_tqdm", False))
+        for i in tqdm.trange(
+            len(camtoworlds_all),
+            desc="Rendering trajectory",
+            disable=disable_tqdm,
+        ):
             camtoworlds = camtoworlds_all[i : i + 1]
             Ks = K[None]
 

@@ -26,20 +26,22 @@ def run_full_pipeline(project_id: str, params: dict | None = None):
     max_steps = params.get("max_steps") if params else None
     stage = params.get("stage", "full") if params else "full"
     
-    # Configure per-project file logging (local mode only)
-    try:
-        from app.services import storage as _storage
-        _project_dir = _storage.get_project_dir(project_id)
-        _log_file = _project_dir / "processing.log"
-        _log_file.parent.mkdir(parents=True, exist_ok=True)
-        _fh = logging.FileHandler(_log_file, mode='a')
-        _fh.setLevel(logging.INFO)
-        _fh.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-        _root = logging.getLogger()
-        _root.addHandler(_fh)
-        logger.info(f"Initialized project log file: {_log_file}")
-    except Exception as e:
-        logger.warning(f"Failed to initialize project log file: {e}")
+    # Configure per-project file logging for local mode only.
+    # In Docker mode, the worker writes processing.log directly.
+    if not USE_DOCKER:
+        try:
+            from app.services import storage as _storage
+            _project_dir = _storage.get_project_dir(project_id)
+            _log_file = _project_dir / "processing.log"
+            _log_file.parent.mkdir(parents=True, exist_ok=True)
+            _fh = logging.FileHandler(_log_file, mode='a')
+            _fh.setLevel(logging.INFO)
+            _fh.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+            _root = logging.getLogger()
+            _root.addHandler(_fh)
+            logger.info(f"Initialized project log file: {_log_file}")
+        except Exception as e:
+            logger.warning(f"Failed to initialize project log file: {e}")
 
     # Use Docker worker for processing
     if USE_DOCKER:

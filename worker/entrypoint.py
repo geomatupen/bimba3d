@@ -26,6 +26,11 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 ENGINE_SUBDIR = "engines"
+SUPPORTED_ENGINES = {"gsplat", "litegs"}
+ENGINE_LABELS = {
+    "gsplat": "Gaussian Splatting",
+    "litegs": "LiteGS",
+}
 BEST_SPARSE_META = ".best_sparse_selection.json"
 SPARSE_IMAGE_MEMBERSHIP_META = ".sparse_image_membership.json"
 
@@ -1693,11 +1698,104 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
         splat_interval = max(1, int(splat_interval)) if splat_interval is not None else None
     except Exception:
         splat_interval = None
+    log_interval = p.get("log_interval", 100)
+    try:
+        log_interval = max(1, int(log_interval))
+    except Exception:
+        log_interval = 100
     project_dir = base_output_dir.parent
     stop_flag = project_dir / "stop_requested"
     gsplat_start = time.time()
     tuning_state: dict[str, object] = {"applied": False, "event": None}
     runner_ref: dict[str, object] = {"runner": None}
+    last_snapshot_step: dict[str, int] = {"value": -1}
+
+    def _log_training_snapshot(
+        step: int,
+        max_steps_local: int,
+        loss: float,
+        progress_fraction: float,
+        elapsed_seconds: float,
+        eta_seconds: float | None,
+    ):
+        """Emit an infrequent, high-value training snapshot for project logs."""
+        runner_obj = runner_ref.get("runner")
+        if runner_obj is None:
+            return
+
+        try:
+            gaussians = None
+            gaussians_opacity_mean = None
+            gaussians_scale_mean = None
+            means_tensor = getattr(runner_obj, "splats", {}).get("means")
+            if means_tensor is not None and hasattr(means_tensor, "shape") and len(means_tensor.shape) > 0:
+                gaussians = int(means_tensor.shape[0])
+            opacity_tensor = getattr(runner_obj, "splats", {}).get("opacities")
+            if opacity_tensor is not None and hasattr(opacity_tensor, "mean"):
+                try:
+                    gaussians_opacity_mean = float(opacity_tensor.detach().mean().item())
+                except Exception:
+                    gaussians_opacity_mean = None
+            scale_tensor = getattr(runner_obj, "splats", {}).get("scales")
+            if scale_tensor is not None and hasattr(scale_tensor, "mean"):
+                try:
+                    gaussians_scale_mean = float(scale_tensor.detach().mean().item())
+                except Exception:
+                    gaussians_scale_mean = None
+
+            strategy_obj = getattr(getattr(runner_obj, "cfg", None), "strategy", None)
+            strategy_vals: dict[str, object] = {}
+            if strategy_obj is not None:
+                for key in ("grow_grad2d", "prune_opa", "refine_every", "reset_every"):
+                    if hasattr(strategy_obj, key):
+                        value = getattr(strategy_obj, key)
+                        if isinstance(value, float):
+                            strategy_vals[key] = round(value, 8)
+                        elif isinstance(value, int):
+                            strategy_vals[key] = value
+
+            optimizer_lrs: dict[str, float] = {}
+            optimizers = getattr(runner_obj, "optimizers", {})
+            for name in ("means", "opacities", "scales", "quats", "sh0", "shN"):
+                optimizer = optimizers.get(name) if isinstance(optimizers, dict) else None
+                if optimizer is None or not getattr(optimizer, "param_groups", None):
+                    continue
+                lr_val = optimizer.param_groups[0].get("lr")
+                if lr_val is None:
+                    continue
+                optimizer_lrs[name] = float(lr_val)
+
+            cfg_obj = getattr(runner_obj, "cfg", None)
+            sh_degree = getattr(runner_obj, "sh_degree_to_use", None)
+            eval_steps_cfg = list(getattr(cfg_obj, "eval_steps", []) or [])
+            save_steps_cfg = list(getattr(cfg_obj, "save_steps", []) or [])
+            next_eval_step = next((int(s) for s in eval_steps_cfg if int(s) >= int(step)), None)
+            next_save_step = next((int(s) for s in save_steps_cfg if int(s) >= int(step)), None)
+
+            steps_per_second = (float(step) / elapsed_seconds) if elapsed_seconds > 0 else None
+            tuning_applied = bool(tuning_state.get("applied"))
+
+            logger.info(
+                "[GSPLAT SNAPSHOT] step=%d/%d progress=%.2f%% loss=%.6f gs=%s opacity_mean=%s scale_mean=%s sh_degree=%s next_eval=%s next_save=%s elapsed=%.1fs eta=%s speed=%s tuning_applied=%s strategy=%s lrs=%s",
+                int(step),
+                int(max_steps_local),
+                float(progress_fraction * 100.0),
+                float(loss),
+                str(gaussians) if gaussians is not None else "n/a",
+                f"{gaussians_opacity_mean:.6f}" if gaussians_opacity_mean is not None else "n/a",
+                f"{gaussians_scale_mean:.6f}" if gaussians_scale_mean is not None else "n/a",
+                str(sh_degree) if sh_degree is not None else "n/a",
+                str(next_eval_step) if next_eval_step is not None else "n/a",
+                str(next_save_step) if next_save_step is not None else "n/a",
+                float(elapsed_seconds),
+                f"{float(eta_seconds):.1f}s" if eta_seconds is not None else "n/a",
+                f"{steps_per_second:.3f} step/s" if steps_per_second is not None else "n/a",
+                tuning_applied,
+                strategy_vals,
+                {k: round(v, 10) for k, v in optimizer_lrs.items()},
+            )
+        except Exception as exc:
+            logger.debug("Failed to emit gsplat training snapshot at step %s: %s", step, exc)
 
     def apply_modified_profile(step: int) -> bool:
         """Apply one-shot deterministic profile updates for modified mode."""
@@ -1828,6 +1926,15 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
             "progress": progress_fraction,
         }, engine=engine_name)
 
+        should_log_snapshot = (
+            step == 1
+            or step == max_steps
+            or step % log_interval == 0
+        )
+        if should_log_snapshot and step != last_snapshot_step["value"]:
+            _log_training_snapshot(step, max_steps, loss, progress_fraction, elapsed, eta)
+            last_snapshot_step["value"] = step
+
     try:
         import torch
         cuda_ok = torch.cuda.is_available()
@@ -1919,6 +2026,18 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
         shN_lr=feature_lr / 20.0,
         strategy=strategy,
         tb_every=0,
+    )
+    cfg.disable_tqdm = not bool(p.get("enable_tqdm", False))
+    cfg.progress_every = max(1, int(log_interval))
+    if cfg.disable_tqdm:
+        os.environ["TQDM_DISABLE"] = "1"
+    else:
+        os.environ.pop("TQDM_DISABLE", None)
+
+    logger.info(
+        "GSPLAT logging cadence: snapshot every %d steps (config key: log_interval); tqdm=%s",
+        log_interval,
+        "disabled" if cfg.disable_tqdm else "enabled",
     )
 
     # Hook worker-level stop/progress into vendored upstream runner.
@@ -2236,6 +2355,27 @@ def run_litegs_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
     return None
 
 
+def _run_selected_training_engine(
+    engine: str,
+    image_dir: Path,
+    colmap_dir: Path,
+    output_dir: Path,
+    params: dict,
+    *,
+    resume: bool,
+):
+    """Run the selected engine training pipeline through one dispatch point."""
+    runner_map = {
+        "gsplat": run_gsplat_training,
+        "litegs": run_litegs_training,
+    }
+    try:
+        runner = runner_map[engine]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported training engine: {engine}") from exc
+    return runner(image_dir, colmap_dir, output_dir, params, resume=resume)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Gaussian Splatting Worker")
     parser.add_argument("project_id", help="Project ID")
@@ -2251,7 +2391,7 @@ def main():
     if "mode" not in params:
         params["mode"] = args.mode
     engine = params.get("engine", "gsplat")
-    if engine not in {"gsplat", "litegs"}:
+    if engine not in SUPPORTED_ENGINES:
         engine = "gsplat"
     params["engine"] = engine
 
@@ -2347,13 +2487,17 @@ def main():
                 sparse_preference,
                 sparse_merge_selection,
             )
-            trainer_label = "LiteGS" if engine == "litegs" else "Gaussian Splatting"
+            trainer_label = ENGINE_LABELS.get(engine, ENGINE_LABELS["gsplat"])
             msg = f"🎯 Starting {trainer_label} training..."
             update_status(project_dir, "processing", progress=55, stage="training", message=msg, engine=engine)
-            if engine == "litegs":
-                stop_reason = run_litegs_training(active_image_dir, colmap_dir, output_dir, params, resume=resume)
-            else:
-                stop_reason = run_gsplat_training(active_image_dir, colmap_dir, output_dir, params, resume=resume)
+            stop_reason = _run_selected_training_engine(
+                engine,
+                active_image_dir,
+                colmap_dir,
+                output_dir,
+                params,
+                resume=resume,
+            )
         else:
             # Full pipeline
             update_status(project_dir, "processing", progress=1, stage="colmap", message="🚀 Starting full pipeline - Running COLMAP structure-from-motion...", engine=engine)
@@ -2366,13 +2510,17 @@ def main():
                 sparse_preference,
                 sparse_merge_selection,
             )
-            trainer_label = "LiteGS" if engine == "litegs" else "Gaussian Splatting"
+            trainer_label = ENGINE_LABELS.get(engine, ENGINE_LABELS["gsplat"])
             msg = f"🎯 Starting {trainer_label} training..."
             update_status(project_dir, "processing", progress=55, stage="training", message=msg, engine=engine)
-            if engine == "litegs":
-                stop_reason = run_litegs_training(active_image_dir, colmap_dir, output_dir, params, resume=resume)
-            else:
-                stop_reason = run_gsplat_training(active_image_dir, colmap_dir, output_dir, params, resume=resume)
+            stop_reason = _run_selected_training_engine(
+                engine,
+                active_image_dir,
+                colmap_dir,
+                output_dir,
+                params,
+                resume=resume,
+            )
 
         if stop_reason:
             # If stopped, set status to 'stopped' and include step info in message

@@ -495,12 +495,26 @@ def process_project(project_id: str, params: ProcessParams | None = Body(None)):
         if not images_dir.exists() or not list(images_dir.glob("*")):
             raise HTTPException(status_code=400, detail="No images in project")
 
+        # Starting/resuming should always clear stale stop markers from previous runs.
+        stop_flag = project_dir / "stop_requested"
+        try:
+            if stop_flag.exists():
+                stop_flag.unlink()
+        except Exception as exc:
+            logger.warning("Failed to clear stale stop flag for %s: %s", project_id, exc)
+
+        try:
+            status.clear_stop_state(project_id)
+        except Exception as exc:
+            logger.warning("Failed to clear stale stop metadata for %s: %s", project_id, exc)
+
         # Prepare params payload with defaults (engine defaults to gsplat)
         params_payload = params.dict(exclude_none=True) if params else {}
 
         # Repro defaults for provided COLMAP pipelines.
         params_payload.setdefault("stage", "train_only")
         params_payload.setdefault("max_steps", 30000)
+        params_payload.setdefault("log_interval", 100)
         params_payload.setdefault("batch_size", 1)
         params_payload.setdefault("densify_from_iter", 500)
         params_payload.setdefault("densify_until_iter", 15000)
@@ -535,7 +549,15 @@ def process_project(project_id: str, params: ProcessParams | None = Body(None)):
             )
 
         # Update status to processing with the resolved engine
-        status.update_status(project_id, "processing", progress=5, engine=engine)
+        status.update_status(
+            project_id,
+            "processing",
+            progress=5,
+            engine=engine,
+            stop_requested=False,
+            message="Processing started.",
+            error=None,
+        )
 
         # Start processing in background thread
         # Pass optional parameters to pipeline

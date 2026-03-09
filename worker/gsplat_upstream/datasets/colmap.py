@@ -26,6 +26,10 @@ from .normalize import (
 )
 
 
+def _disable_tqdm() -> bool:
+    return str(os.environ.get("TQDM_DISABLE", "")).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _get_rel_paths(path_dir: str) -> List[str]:
     """Recursively get relative paths of files in a directory."""
     paths = []
@@ -41,7 +45,7 @@ def _resize_image_folder(image_dir: str, resized_dir: str, factor: int) -> str:
     os.makedirs(resized_dir, exist_ok=True)
 
     image_files = _get_rel_paths(image_dir)
-    for image_file in tqdm(image_files):
+    for image_file in tqdm(image_files, disable=_disable_tqdm()):
         image_path = os.path.join(image_dir, image_file)
         resized_path = os.path.join(
             resized_dir, os.path.splitext(image_file)[0] + ".png"
@@ -366,7 +370,11 @@ class Parser:
         # Always read from original (non-downscaled) images since PNG doesn't support EXIF.
         if load_exposure:
             exposure_values: List[Optional[float]] = []
-            for image_name in tqdm(image_names, desc="Loading EXIF exposure"):
+            for image_name in tqdm(
+                image_names,
+                desc="Loading EXIF exposure",
+                disable=_disable_tqdm(),
+            ):
                 original_path = Path(colmap_image_dir) / image_name
                 exposure_values.append(compute_exposure_from_exif(original_path))
 
@@ -589,7 +597,7 @@ if __name__ == "__main__":
     print(f"Dataset: {len(dataset)} images.")
 
     writer = imageio.get_writer("results/points.mp4", fps=30)
-    for data in tqdm(dataset, desc="Plotting points"):
+    for data in tqdm(dataset, desc="Plotting points", disable=_disable_tqdm()):
         image = data["image"].numpy().astype(np.uint8)
         points = data["points"].numpy()
         depths = data["depths"].numpy()

@@ -133,3 +133,25 @@ def update_status(
     with open(temp_file, "w") as f:
         json.dump(current, f)
     temp_file.replace(status_file)
+
+
+def clear_stop_state(project_id: str) -> None:
+    """Remove stale stop markers so a new run starts from a clean state."""
+    status_file = get_status_file(project_id)
+    status_file.parent.mkdir(parents=True, exist_ok=True)
+
+    current = get_status(project_id)
+    current["stop_requested"] = False
+    current.pop("stopped_stage", None)
+    current.pop("stopped_step", None)
+    current.pop("stopped_percentage", None)
+
+    # Remove stale stop message only if it came from a user stop action.
+    message = current.get("message")
+    if isinstance(message, str) and "stopped by user" in message.lower():
+        current["message"] = None
+
+    temp_file = status_file.with_suffix('.tmp')
+    with open(temp_file, "w") as f:
+        json.dump(current, f)
+    temp_file.replace(status_file)
