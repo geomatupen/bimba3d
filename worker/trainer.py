@@ -74,6 +74,19 @@ from .colmap_loader import COLMAPDataset
 logger = logging.getLogger(__name__)
 
 
+def _to_json_safe(value):
+    """Recursively convert NumPy values to JSON-serializable Python types."""
+    if isinstance(value, dict):
+        return {k: _to_json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_json_safe(v) for v in value]
+    if isinstance(value, np.ndarray):
+        return [_to_json_safe(v) for v in value.tolist()]
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
+
+
 def get_expon_lr_func(
     lr_init: float,
     lr_final: float,
@@ -878,7 +891,7 @@ class GsplatTrainer:
         
         results_path = self.output_dir / "adaptive_tuning_results.json"
         with open(results_path, "w") as f:
-            json.dump(results, f, indent=2)
+            json.dump(_to_json_safe(results), f, indent=2)
         logger.info(f"[TUNER] Saved tuning results to {results_path}")
     
     def train(self):
