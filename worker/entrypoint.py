@@ -14,6 +14,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 import time
 
@@ -1603,6 +1604,36 @@ def _write_json_atomic(path: Path, payload: dict | list):
     tmp.replace(path)
 
 
+def _read_latest_training_loss(engine_output_dir: Path) -> float | None:
+    metrics_path = engine_output_dir / "metrics.json"
+    if not metrics_path.exists():
+        return None
+    try:
+        with open(metrics_path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        value = payload.get("loss") if isinstance(payload, dict) else None
+        return float(value) if value is not None else None
+    except Exception:
+        return None
+
+
+def _compute_laplacian_variance(image_path: Path) -> float | None:
+    if not image_path.exists():
+        return None
+    try:
+        gray = np.asarray(Image.open(image_path).convert("L"), dtype=np.float32)
+        lap = (
+            -4.0 * gray
+            + np.roll(gray, 1, axis=0)
+            + np.roll(gray, -1, axis=0)
+            + np.roll(gray, 1, axis=1)
+            + np.roll(gray, -1, axis=1)
+        )
+        return float(np.var(lap))
+    except Exception:
+        return None
+
+
 def _collect_eval_history(engine_output_dir: Path, params: dict, mode: str) -> list[dict]:
     """Build comparison-compatible eval history from upstream stats outputs."""
     stats_dir = engine_output_dir / "stats"
@@ -1689,10 +1720,23 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
     engine_output_dir = _get_engine_output_dir(base_output_dir, engine_name)
     (engine_output_dir / "previews").mkdir(parents=True, exist_ok=True)
     (engine_output_dir / "snapshots").mkdir(parents=True, exist_ok=True)
+    tuning_history_path = engine_output_dir / "rule_update_history.json"
 
     p = params or {}
     mode = p.get("mode", "baseline")
     max_steps = int(p.get("max_steps", 30_000))
+    raw_tune_end_step = p.get("tune_end_step", 200)
+    try:
+        modified_tune_end_step = max(1, int(raw_tune_end_step))
+    except Exception:
+        modified_tune_end_step = 200
+    raw_tune_interval = p.get("tune_interval", 25)
+    try:
+        modified_tune_interval = max(1, int(raw_tune_interval))
+    except Exception:
+        modified_tune_interval = 25
+    raw_tune_scope = str(p.get("tune_scope", "with_strategy") or "with_strategy").strip().lower()
+    tune_scope = raw_tune_scope if raw_tune_scope in {"core_only", "with_strategy"} else "with_strategy"
     splat_interval = p.get("splat_export_interval")
     try:
         splat_interval = max(1, int(splat_interval)) if splat_interval is not None else None
@@ -1706,9 +1750,67 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
     project_dir = base_output_dir.parent
     stop_flag = project_dir / "stop_requested"
     gsplat_start = time.time()
-    tuning_state: dict[str, object] = {"applied": False, "event": None}
+    run_session_id = str(uuid.uuid4())
+    host_boot_id = "n/a"
+    host_uptime_text = "n/a"
+    try:
+        host_boot_id = Path("/proc/sys/kernel/random/boot_id").read_text(encoding="utf-8", errors="ignore").strip() or "n/a"
+    except Exception:
+        pass
+    try:
+        uptime_raw = Path("/proc/uptime").read_text(encoding="utf-8", errors="ignore").strip().split()
+        if uptime_raw:
+            host_uptime_text = f"{float(uptime_raw[0]):.1f}s"
+    except Exception:
+        pass
+    logger.info(
+        "GSPLAT run marker: session_id=%s pid=%d boot_id=%s host_uptime=%s started_at=%s",
+        run_session_id,
+        os.getpid(),
+        host_boot_id,
+        host_uptime_text,
+        time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(gsplat_start)),
+    )
+    tuning_state: dict[str, object] = {
+        "updates": 0,
+        "last_event": None,
+        "events": [],
+        "last_tuned_step": None,
+        "phase_complete_logged": False,
+    }
     runner_ref: dict[str, object] = {"runner": None}
     last_snapshot_step: dict[str, int] = {"value": -1}
+    cpu_usage_state: dict[str, tuple[int, int] | None] = {"last": None}
+    telemetry_state: dict[str, object] = {
+        "snapshot_count": 0,
+        "gpu_usage": "n/a",
+        "cpu_usage": "n/a",
+        "ram_usage": "n/a",
+        "gpu_temp": "n/a",
+    }
+
+    if mode == "modified":
+        logger.info(
+            "Modified training mode active: scope=%s, rule-based tuning runs every %d steps through step %d; afterwards training continues normally",
+            tune_scope,
+            modified_tune_interval,
+            modified_tune_end_step,
+        )
+    else:
+        logger.info("Baseline training mode active: no deterministic profile adjustments")
+
+    def persist_rule_update_history() -> None:
+        """Persist detailed rule-update history for reproducibility/debugging."""
+        payload = {
+            "mode": mode,
+            "tune_scope": tune_scope,
+            "tune_end_step": modified_tune_end_step,
+            "tune_interval": modified_tune_interval,
+            "updates_count": int(tuning_state.get("updates", 0) or 0),
+            "updates": list(tuning_state.get("events") or []),
+            "last_update": tuning_state.get("last_event"),
+        }
+        _write_json_atomic(tuning_history_path, payload)
 
     def _log_training_snapshot(
         step: int,
@@ -1773,7 +1875,106 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
             next_save_step = next((int(s) for s in save_steps_cfg if int(s) >= int(step)), None)
 
             steps_per_second = (float(step) / elapsed_seconds) if elapsed_seconds > 0 else None
-            tuning_applied = bool(tuning_state.get("applied"))
+            tuning_applied = bool(int(tuning_state.get("updates", 0) or 0) > 0)
+
+            telemetry_state["snapshot_count"] = int(telemetry_state.get("snapshot_count", 0) or 0) + 1
+            snapshot_count = int(telemetry_state["snapshot_count"])
+            should_collect_telemetry = snapshot_count == 1 or (snapshot_count % 2 == 0)
+
+            gpu_usage_text = str(telemetry_state.get("gpu_usage", "n/a"))
+            gpu_temp_text = str(telemetry_state.get("gpu_temp", "n/a"))
+            if should_collect_telemetry:
+                try:
+                    import torch
+                    if torch.cuda.is_available():
+                        selected_idx = int(torch.cuda.current_device())
+                        smi_cmd = [
+                            "nvidia-smi",
+                            "--query-gpu=index,utilization.gpu,memory.used,memory.total,temperature.gpu",
+                            "--format=csv,noheader,nounits",
+                        ]
+                        smi_out = subprocess.run(smi_cmd, check=True, capture_output=True, text=True)
+                        for raw in (smi_out.stdout or "").splitlines():
+                            parts = [part.strip() for part in raw.split(",")]
+                            if len(parts) < 5:
+                                continue
+                            try:
+                                gpu_idx = int(parts[0])
+                            except Exception:
+                                continue
+                            if gpu_idx != selected_idx:
+                                continue
+                            try:
+                                util_pct = int(float(parts[1]))
+                            except Exception:
+                                util_pct = 0
+                            try:
+                                mem_used = float(parts[2])
+                                mem_total = max(1.0, float(parts[3]))
+                                mem_pct = int(round((mem_used / mem_total) * 100.0))
+                            except Exception:
+                                mem_pct = 0
+                            try:
+                                gpu_temp_c = int(round(float(parts[4])))
+                                gpu_temp_text = f"{gpu_temp_c}C"
+                            except Exception:
+                                gpu_temp_text = "n/a"
+                            gpu_usage_text = f"gpu{gpu_idx}:util={util_pct}% mem={mem_pct}%"
+                            break
+                except Exception:
+                    pass
+
+            ram_usage_text = str(telemetry_state.get("ram_usage", "n/a"))
+            if should_collect_telemetry:
+                try:
+                    meminfo: dict[str, int] = {}
+                    with open("/proc/meminfo", "r", encoding="utf-8") as mem_file:
+                        for raw_line in mem_file:
+                            parts = raw_line.split(":", 1)
+                            if len(parts) != 2:
+                                continue
+                            key = parts[0].strip()
+                            value_field = parts[1].strip().split()[0]
+                            try:
+                                meminfo[key] = int(value_field)
+                            except Exception:
+                                continue
+
+                    total_kb = int(meminfo.get("MemTotal", 0))
+                    available_kb = int(meminfo.get("MemAvailable", 0))
+                    if total_kb > 0:
+                        used_kb = max(0, total_kb - available_kb)
+                        ram_pct = int(round((used_kb / float(total_kb)) * 100.0))
+                        ram_usage_text = f"util={ram_pct}%"
+                except Exception:
+                    pass
+
+            cpu_usage_text = str(telemetry_state.get("cpu_usage", "n/a"))
+            if should_collect_telemetry:
+                try:
+                    with open("/proc/stat", "r", encoding="utf-8") as stat_file:
+                        first_line = stat_file.readline().strip()
+                    parts = first_line.split()
+                    if len(parts) >= 5 and parts[0] == "cpu":
+                        values = [int(v) for v in parts[1:11]]
+                        idle = values[3] + values[4]
+                        total = sum(values)
+                        previous = cpu_usage_state.get("last")
+                        cpu_usage_state["last"] = (total, idle)
+                        if previous is not None:
+                            prev_total, prev_idle = previous
+                            total_delta = max(1, total - prev_total)
+                            idle_delta = max(0, idle - prev_idle)
+                            usage_pct = int(round(((total_delta - idle_delta) / float(total_delta)) * 100.0))
+                            usage_pct = max(0, min(100, usage_pct))
+                            cpu_usage_text = f"util={usage_pct}%"
+                except Exception:
+                    pass
+
+            telemetry_state["gpu_usage"] = gpu_usage_text
+            telemetry_state["cpu_usage"] = cpu_usage_text
+            telemetry_state["ram_usage"] = ram_usage_text
+            telemetry_state["gpu_temp"] = gpu_temp_text
 
             logger.info(
                 "[GSPLAT SNAPSHOT] step=%d/%d progress=%.2f%% loss=%.6f gs=%s opacity_mean=%s scale_mean=%s sh_degree=%s next_eval=%s next_save=%s elapsed=%.1fs eta=%s speed=%s tuning_applied=%s strategy=%s lrs=%s",
@@ -1794,14 +1995,28 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
                 strategy_vals,
                 {k: round(v, 10) for k, v in optimizer_lrs.items()},
             )
+            logger.info(
+                "[GSPLAT TELEMETRY] step=%d gpu_usage=%s cpu_usage=%s ram_usage=%s gpu_temp=%s",
+                int(step),
+                gpu_usage_text,
+                cpu_usage_text,
+                ram_usage_text,
+                gpu_temp_text,
+            )
         except Exception as exc:
             logger.debug("Failed to emit gsplat training snapshot at step %s: %s", step, exc)
 
-    def apply_modified_profile(step: int) -> bool:
-        """Apply one-shot deterministic profile updates for modified mode."""
-        if mode != "modified" or tuning_state.get("applied"):
+    def apply_modified_rules(step: int, loss: float) -> bool:
+        """Apply rule-based tuning updates while modified mode is in its tuning window."""
+        if mode != "modified":
             return False
-        if step < 200:
+        if step > modified_tune_end_step:
+            return False
+        if step < modified_tune_interval:
+            return False
+        if step % modified_tune_interval != 0 and step != modified_tune_end_step:
+            return False
+        if tuning_state.get("last_tuned_step") == step:
             return False
 
         runner_obj = runner_ref.get("runner")
@@ -1809,14 +2024,68 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
             return False
 
         try:
-            lr_multipliers = {
-                "means": 0.85,
-                "opacities": 0.80,
-                "scales": 0.95,
-                "quats": 0.95,
-                "sh0": 1.10,
-                "shN": 1.10,
+            try:
+                loss_value = float(loss)
+            except Exception:
+                loss_value = 0.0
+
+            if loss_value >= 0.20:
+                profile = "high_loss"
+                lr_multipliers = {
+                    "means": 0.92,
+                    "opacities": 0.86,
+                    "scales": 1.00,
+                    "quats": 1.00,
+                    "sh0": 0.96,
+                    "shN": 0.96,
+                }
+                strategy_multipliers = {
+                    "grow_grad2d": 0.92,
+                    "prune_opa": 0.96,
+                    "refine_every": 1.08,
+                    "reset_every": 1.05,
+                }
+            elif loss_value >= 0.08:
+                profile = "mid_loss"
+                lr_multipliers = {
+                    "means": 0.96,
+                    "opacities": 0.92,
+                    "scales": 1.00,
+                    "quats": 1.00,
+                    "sh0": 1.00,
+                    "shN": 1.00,
+                }
+                strategy_multipliers = {
+                    "grow_grad2d": 0.97,
+                    "prune_opa": 0.98,
+                    "refine_every": 1.03,
+                    "reset_every": 1.02,
+                }
+            else:
+                profile = "low_loss"
+                lr_multipliers = {
+                    "means": 1.02,
+                    "opacities": 0.99,
+                    "scales": 1.00,
+                    "quats": 1.00,
+                    "sh0": 1.05,
+                    "shN": 1.05,
+                }
+                strategy_multipliers = {
+                    "grow_grad2d": 1.03,
+                    "prune_opa": 1.01,
+                    "refine_every": 0.97,
+                    "reset_every": 0.98,
+                }
+
+            applied_multipliers = {
+                "lr": float(lr_multipliers["means"]),
+                "opacity_lr_mult": float(lr_multipliers["opacities"]),
+                "sh_lr_mult": float((float(lr_multipliers["sh0"]) + float(lr_multipliers["shN"])) / 2.0),
+                "position_lr_mult": float(lr_multipliers["means"]),
+                "densify_threshold_mult": float(strategy_multipliers["grow_grad2d"]),
             }
+
             before_lrs: dict[str, float] = {}
             after_lrs: dict[str, float] = {}
             for name, mult in lr_multipliers.items():
@@ -1825,7 +2094,7 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
                     continue
                 current_lr = float(optimizer.param_groups[0].get("lr", 0.0))
                 before_lrs[name] = current_lr
-                new_lr = current_lr * float(mult)
+                new_lr = max(1e-7, min(1.0, current_lr * float(mult)))
                 for group in optimizer.param_groups:
                     group["lr"] = new_lr
                 after_lrs[name] = new_lr
@@ -1837,20 +2106,24 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
                 for key in ("grow_grad2d", "prune_opa", "refine_every", "reset_every"):
                     strategy_before[key] = float(getattr(strategy, key))
 
-                strategy.grow_grad2d = max(5e-5, float(strategy.grow_grad2d) * 0.85)
-                strategy.prune_opa = max(1e-4, float(strategy.prune_opa) * 0.90)
-                strategy.refine_every = max(25, int(float(strategy.refine_every) * 0.80))
-                strategy.reset_every = max(strategy.refine_every, int(float(strategy.reset_every) * 0.85))
+                strategy.grow_grad2d = max(5e-5, min(5e-3, float(strategy.grow_grad2d) * float(strategy_multipliers["grow_grad2d"])))
+                if tune_scope == "with_strategy":
+                    strategy.prune_opa = max(1e-4, min(5e-2, float(strategy.prune_opa) * float(strategy_multipliers["prune_opa"])))
+                    strategy.refine_every = max(25, min(300, int(float(strategy.refine_every) * float(strategy_multipliers["refine_every"]))))
+                    strategy.reset_every = max(strategy.refine_every, min(600, int(float(strategy.reset_every) * float(strategy_multipliers["reset_every"]))))
 
                 for key in ("grow_grad2d", "prune_opa", "refine_every", "reset_every"):
                     strategy_after[key] = float(getattr(strategy, key))
 
             event = {
                 "step": int(step),
+                "loss": loss_value,
+                "profile": profile,
+                "scope": tune_scope,
+                "rule_multipliers": applied_multipliers,
                 "adjustments": [
-                    "step200_deterministic_profile",
-                    "lr_rebalance_means_opacity_sh",
-                    "densification_threshold_and_cadence_shift",
+                    "rule_based_lr_scaling",
+                    "rule_based_strategy_scaling",
                 ],
                 "params": {
                     "learning_rates": after_lrs,
@@ -1861,8 +2134,11 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
                     "strategy": strategy_before,
                 },
             }
-            tuning_state["event"] = event
-            tuning_state["applied"] = True
+            tuning_state["last_event"] = event
+            tuning_state["events"].append(event)
+            tuning_state["updates"] = int(tuning_state.get("updates", 0) or 0) + 1
+            tuning_state["last_tuned_step"] = int(step)
+            persist_rule_update_history()
 
             update_status(
                 project_dir,
@@ -1871,21 +2147,54 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
                 tuning_active=True,
                 last_tuning={
                     "step": int(step),
-                    "action": "Step-200 profile update",
-                    "reason": "Modified mode deterministic tuning",
+                    "action": f"Rule-based {profile} update",
+                    "reason": f"Modified mode rule check (step {step} <= {modified_tune_end_step})",
                 },
             )
-            logger.info("Applied modified-mode profile at step %d", step)
+            logger.info(
+                "Modified rule update applied at step %d/%d (loss=%.6f, profile=%s, scope=%s)",
+                step,
+                modified_tune_end_step,
+                loss_value,
+                profile,
+                tune_scope,
+            )
+            logger.info(
+                "Modified rule details step=%d before_lrs=%s after_lrs=%s before_strategy=%s after_strategy=%s",
+                step,
+                json.dumps(before_lrs, sort_keys=True),
+                json.dumps(after_lrs, sort_keys=True),
+                json.dumps(strategy_before, sort_keys=True),
+                json.dumps(strategy_after, sort_keys=True),
+            )
             return True
         except Exception as exc:
-            logger.warning("Failed to apply modified-mode profile at step %d: %s", step, exc)
+            logger.warning(
+                "Failed modified-mode rule update at step %d/%d: %s",
+                step,
+                modified_tune_end_step,
+                exc,
+            )
             return False
 
     def stop_checker() -> bool:
         return stop_flag.exists()
 
     def progress_callback(step: int, max_steps: int, loss: float) -> None:
-        apply_modified_profile(step)
+        if mode == "modified" and step == modified_tune_interval:
+            logger.info(
+                "Modified tuning window started at step %d; rule checks every %d steps until step %d",
+                step,
+                modified_tune_interval,
+                modified_tune_end_step,
+            )
+        if mode == "modified" and not tuning_state.get("phase_complete_logged") and step == modified_tune_end_step + 1:
+            logger.info(
+                "Modified tuning window finished at step %d; continuing with tuned parameters and no further rule updates",
+                modified_tune_end_step,
+            )
+            tuning_state["phase_complete_logged"] = True
+        apply_modified_rules(step, loss)
         requested_stop = stop_checker()
         status_text = "stopping" if requested_stop else "processing"
         progress_fraction = 0.0 if max_steps <= 0 else float(step) / float(max_steps)
@@ -1912,6 +2221,7 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
             status_text,
             progress=60 + int(progress_fraction * 35),
             mode=mode,
+            tuning_active=(mode == "modified" and step <= modified_tune_end_step),
             currentStep=step,
             maxSteps=max_steps,
             stop_requested=requested_stop,
@@ -1935,12 +2245,83 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
             _log_training_snapshot(step, max_steps, loss, progress_fraction, elapsed, eta)
             last_snapshot_step["value"] = step
 
+    gpu_inventory: list[dict[str, object]] = []
+    selected_gpu_index: int | None = None
+    selected_gpu_name: str | None = None
     try:
         import torch
         cuda_ok = torch.cuda.is_available()
+        if cuda_ok:
+            for gpu_idx in range(int(torch.cuda.device_count())):
+                try:
+                    gpu_inventory.append({
+                        "index": int(gpu_idx),
+                        "name": str(torch.cuda.get_device_name(gpu_idx)),
+                    })
+                except Exception:
+                    gpu_inventory.append({
+                        "index": int(gpu_idx),
+                        "name": "unknown",
+                    })
+            selected_gpu_index = int(torch.cuda.current_device()) if torch.cuda.device_count() > 0 else None
+            if selected_gpu_index is not None:
+                selected_gpu_name = str(torch.cuda.get_device_name(selected_gpu_index))
     except Exception:
         cuda_ok = False
     device = "cuda" if (p.get("use_cuda", True) and cuda_ok) else "cpu"
+
+    logger.info(
+        "Training runtime selection: mode=%s device=%s use_cuda=%s cuda_available=%s gpu_count=%d",
+        mode,
+        device,
+        bool(p.get("use_cuda", True)),
+        bool(cuda_ok),
+        len(gpu_inventory),
+    )
+    if gpu_inventory:
+        logger.info("CUDA GPU inventory: %s", json.dumps(gpu_inventory))
+    if device == "cuda":
+        logger.info(
+            "Selected CUDA device: index=%s name=%s",
+            str(selected_gpu_index) if selected_gpu_index is not None else "unknown",
+            selected_gpu_name or "unknown",
+        )
+        try:
+            smi_cmd = [
+                "nvidia-smi",
+                "--query-gpu=index,utilization.gpu,memory.used,memory.total",
+                "--format=csv,noheader,nounits",
+            ]
+            smi_out = subprocess.run(smi_cmd, check=True, capture_output=True, text=True)
+            selected_usage_line = None
+            for raw in (smi_out.stdout or "").splitlines():
+                parts = [part.strip() for part in raw.split(",")]
+                if len(parts) < 4:
+                    continue
+                try:
+                    gpu_idx = int(parts[0])
+                except Exception:
+                    continue
+                if selected_gpu_index is not None and gpu_idx != selected_gpu_index:
+                    continue
+                try:
+                    util_pct = int(float(parts[1]))
+                except Exception:
+                    util_pct = 0
+                try:
+                    mem_used = float(parts[2])
+                    mem_total = max(1.0, float(parts[3]))
+                    mem_pct = int(round((mem_used / mem_total) * 100.0))
+                except Exception:
+                    mem_pct = 0
+                selected_usage_line = f"GPU usage now: util={util_pct}% mem={mem_pct}%"
+                break
+            if selected_usage_line:
+                logger.info(selected_usage_line)
+        except Exception:
+            pass
+    else:
+        logger.info("Selected compute mode: CPU")
 
     if stop_flag.exists():
         update_status(project_dir, "stopped", progress=55, stage="training", message="⏸️ Processing stopped before gsplat training.", stop_requested=True, stopped_stage="training")
@@ -2157,27 +2538,57 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
         for row in eval_history:
             tuning_params = row.get("tuning_params") if isinstance(row, dict) else None
             if isinstance(tuning_params, dict):
-                tuning_params["modified_profile_applied"] = bool(tuning_state.get("applied"))
-                if tuning_state.get("event"):
-                    tuning_params["modified_profile_step"] = tuning_state["event"].get("step")
+                tuning_params["modified_rule_updates"] = int(tuning_state.get("updates", 0) or 0)
+                if tuning_state.get("last_event"):
+                    tuning_params["modified_last_rule_step"] = tuning_state["last_event"].get("step")
     if eval_history:
         _write_json_atomic(engine_output_dir / "eval_history.json", eval_history)
         final_eval = eval_history[-1]
+        latest_training_loss = _read_latest_training_loss(engine_output_dir)
+        final_loss_value = final_eval.get("final_loss")
+        if final_loss_value is None:
+            final_loss_value = latest_training_loss
+        laplacian_variance = _compute_laplacian_variance(engine_output_dir / "previews" / "preview_latest.png")
         final_metrics = {
             "lpips_score": final_eval.get("lpips_mean"),
             "sharpness": final_eval.get("sharpness_mean"),
+            "laplacian_variance": laplacian_variance,
             "convergence_speed": final_eval.get("convergence_speed"),
-            "final_loss": final_eval.get("final_loss"),
+            "final_loss": final_loss_value,
             "gaussian_count": final_eval.get("num_gaussians"),
+        }
+        evaluation_parameters = {
+            "fixed_iteration_step": final_eval.get("step"),
+            "eval_interval": p.get("eval_interval"),
+            "save_interval": p.get("save_interval"),
+            "splat_export_interval": p.get("splat_export_interval"),
+            "metrics_requested": [
+                "convergence_speed",
+                "final_loss",
+                "lpips",
+                "image_sharpness_laplacian_variance",
+                "gaussian_count",
+                "visual_comparison",
+            ],
+            "visual_comparison": {
+                "latest_preview": "previews/preview_latest.png",
+                "renders_dir": "renders",
+                "snapshots_dir": "snapshots",
+            },
         }
         adaptive_payload = {
             "mode": mode,
+            "tune_scope": tune_scope if mode == "modified" else None,
             "final_evaluation": final_metrics,
-            "tune_end_step": final_eval.get("step"),
-            "tuning_history": [tuning_state["event"]] if tuning_state.get("event") else [],
-            "final_params": (tuning_state.get("event") or {}).get("params", {}),
+            "evaluation_parameters": evaluation_parameters,
+            "tune_end_step": modified_tune_end_step if mode == "modified" else final_eval.get("step"),
+            "tune_interval": modified_tune_interval if mode == "modified" else None,
+            "tuning_history": list(tuning_state.get("events") or []),
+            "final_params": (tuning_state.get("last_event") or {}).get("params", {}),
         }
         _write_json_atomic(engine_output_dir / "adaptive_tuning_results.json", adaptive_payload)
+        if mode == "modified":
+            persist_rule_update_history()
 
         metadata_path = engine_output_dir / "metadata.json"
         metadata = {}
@@ -2190,12 +2601,15 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
         metadata["evaluation_metrics"] = final_metrics
         metadata["final_metrics"] = {
             "convergence_speed": final_eval.get("convergence_speed"),
-            "final_loss": final_eval.get("final_loss"),
+            "final_loss": final_loss_value,
             "lpips_mean": final_eval.get("lpips_mean"),
             "sharpness_mean": final_eval.get("sharpness_mean"),
+            "laplacian_variance": laplacian_variance,
         }
+        metadata["evaluation_parameters"] = evaluation_parameters
         metadata["num_gaussians"] = final_eval.get("num_gaussians")
         metadata["mode"] = mode
+        metadata["tune_scope"] = tune_scope if mode == "modified" else None
         _write_json_atomic(metadata_path, metadata)
 
     if stop_flag.exists():
@@ -2382,7 +2796,7 @@ def main():
     parser.add_argument("--data-dir", default="/data/projects", help="Data directory")
     parser.add_argument("--params", type=json.loads, default="{}", help="Training parameters as JSON")
     parser.add_argument("--mode", default="baseline", choices=["baseline", "modified"], 
-                        help="Training mode: baseline or modified (with step 200 optimization)")
+                        help="Training mode: baseline or modified (deterministic profile applied at tune_end_step, default 200)")
 
     args = parser.parse_args()
 

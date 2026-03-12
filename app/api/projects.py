@@ -509,7 +509,8 @@ def process_project(project_id: str, params: ProcessParams | None = Body(None)):
             logger.warning("Failed to clear stale stop metadata for %s: %s", project_id, exc)
 
         # Prepare params payload with defaults (engine defaults to gsplat)
-        params_payload = params.dict(exclude_none=True) if params else {}
+        requested_params = params.dict(exclude_none=True) if params else {}
+        params_payload = dict(requested_params)
 
         # Repro defaults for provided COLMAP pipelines.
         params_payload.setdefault("stage", "train_only")
@@ -536,6 +537,31 @@ def process_project(project_id: str, params: ProcessParams | None = Body(None)):
         if engine not in {"gsplat", "litegs"}:
             raise HTTPException(status_code=400, detail=f"Invalid training engine: {engine}")
         params_payload["engine"] = engine
+
+        # Persist run configuration for reproducibility (requested + resolved params).
+        try:
+            run_timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+            run_config_payload = {
+                "project_id": project_id,
+                "saved_at": datetime.utcnow().isoformat() + "Z",
+                "requested_params": requested_params,
+                "resolved_params": params_payload,
+            }
+
+            run_config_latest = project_dir / "run_config.json"
+            run_configs_dir = project_dir / "run_configs"
+            run_configs_dir.mkdir(parents=True, exist_ok=True)
+            run_config_versioned = run_configs_dir / f"run_config_{run_timestamp}.json"
+
+            for target_path in (run_config_latest, run_config_versioned):
+                tmp_path = target_path.with_suffix(target_path.suffix + ".tmp")
+                with open(tmp_path, "w", encoding="utf-8") as handle:
+                    json.dump(run_config_payload, handle, indent=2)
+                tmp_path.replace(target_path)
+
+            logger.info("Saved run configuration: %s", run_config_latest)
+        except Exception as exc:
+            logger.warning("Failed to persist run configuration for %s: %s", project_id, exc)
 
         # Prevent overlapping runs for the same project.
         running_workers = colmap.get_project_worker_container_ids(project_id)
