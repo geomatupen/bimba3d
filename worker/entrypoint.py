@@ -2040,10 +2040,10 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
                     "shN": 0.96,
                 }
                 strategy_multipliers = {
-                    "grow_grad2d": 0.92,
-                    "prune_opa": 0.96,
-                    "refine_every": 1.08,
-                    "reset_every": 1.05,
+                    "grow_grad2d": 0.95,
+                    "prune_opa": 1.00,
+                    "refine_every": 0.96,
+                    "reset_every": 0.98,
                 }
             elif loss_value >= 0.08:
                 profile = "mid_loss"
@@ -2057,9 +2057,9 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
                 }
                 strategy_multipliers = {
                     "grow_grad2d": 0.97,
-                    "prune_opa": 0.98,
-                    "refine_every": 1.03,
-                    "reset_every": 1.02,
+                    "prune_opa": 1.00,
+                    "refine_every": 0.98,
+                    "reset_every": 1.00,
                 }
             else:
                 profile = "low_loss"
@@ -2072,10 +2072,10 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
                     "shN": 1.05,
                 }
                 strategy_multipliers = {
-                    "grow_grad2d": 1.03,
-                    "prune_opa": 1.01,
-                    "refine_every": 0.97,
-                    "reset_every": 0.98,
+                    "grow_grad2d": 0.99,
+                    "prune_opa": 1.00,
+                    "refine_every": 0.99,
+                    "reset_every": 1.00,
                 }
 
             applied_multipliers = {
@@ -2110,7 +2110,7 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
                 if tune_scope == "with_strategy":
                     strategy.prune_opa = max(1e-4, min(5e-2, float(strategy.prune_opa) * float(strategy_multipliers["prune_opa"])))
                     strategy.refine_every = max(25, min(300, int(float(strategy.refine_every) * float(strategy_multipliers["refine_every"]))))
-                    strategy.reset_every = max(strategy.refine_every, min(600, int(float(strategy.reset_every) * float(strategy_multipliers["reset_every"]))))
+                    strategy.reset_every = max(max(strategy.refine_every, 1000), min(6000, int(float(strategy.reset_every) * float(strategy_multipliers["reset_every"]))))
 
                 for key in ("grow_grad2d", "prune_opa", "refine_every", "reset_every"):
                     strategy_after[key] = float(getattr(strategy, key))
