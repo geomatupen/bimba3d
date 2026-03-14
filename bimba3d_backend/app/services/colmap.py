@@ -88,9 +88,11 @@ def run_colmap_docker(project_id: str, params: dict = None) -> None:
         logger.warning(f"Could not create cache dir {cache_dir}: {e}")
     
     # Run container as the host backend user to avoid root-owned output files.
-    uid = os.getuid()
-    gid = os.getgid()
-    user_flag = ["-u", f"{uid}:{gid}"]
+    get_uid = getattr(os, "getuid", None)
+    get_gid = getattr(os, "getgid", None)
+    uid = get_uid() if callable(get_uid) else None
+    gid = get_gid() if callable(get_gid) else None
+    user_flag = ["-u", f"{uid}:{gid}"] if uid is not None and gid is not None else []
 
     cmd = [
         "docker", "run", "--rm",

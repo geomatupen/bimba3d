@@ -37,14 +37,23 @@ def create_project():
     # Ensure created directories have restrictive but writable permissions for the backend user.
     # Use owner rwx, group rwx, others none (0o770). Also set setgid on the project dir so
     # newly created files inherit the group when possible (0o2770).
-    uid = os.getuid()
-    gid = os.getgid()
+    get_uid = getattr(os, "getuid", None)
+    get_gid = getattr(os, "getgid", None)
+    uid = get_uid() if callable(get_uid) else None
+    gid = get_gid() if callable(get_gid) else None
     try:
         # project_dir might not exist if parent mkdir race; ensure exists
         project_dir.mkdir(parents=True, exist_ok=True)
-        _safe_chown_chmod(project_dir, uid, gid, 0o2770)
-        _safe_chown_chmod(images_dir, uid, gid, 0o770)
-        _safe_chown_chmod(outputs_dir, uid, gid, 0o770)
+        if uid is not None and gid is not None:
+            _safe_chown_chmod(project_dir, uid, gid, 0o2770)
+            _safe_chown_chmod(images_dir, uid, gid, 0o770)
+            _safe_chown_chmod(outputs_dir, uid, gid, 0o770)
+        else:
+            # Windows and other non-POSIX environments don't expose uid/gid.
+            # Apply mode best-effort without ownership changes.
+            project_dir.chmod(0o770)
+            images_dir.chmod(0o770)
+            outputs_dir.chmod(0o770)
     except Exception:
         # Best-effort; do not fail project creation if permission setting isn't allowed
         pass
