@@ -20,6 +20,7 @@ import time
 
 import numpy as np
 
+from .engines import ENGINE_LABELS, SUPPORTED_ENGINES, run_selected_engine
 from .image_resize import prepare_training_images, normalize_max_size
 from .colmap_loader import COLMAPDataset, qvec2rotmat, read_images_binary, read_points3D_binary
 
@@ -27,11 +28,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 ENGINE_SUBDIR = "engines"
-SUPPORTED_ENGINES = {"gsplat", "litegs"}
-ENGINE_LABELS = {
-    "gsplat": "Gaussian Splatting",
-    "litegs": "LiteGS",
-}
 BEST_SPARSE_META = ".best_sparse_selection.json"
 SPARSE_IMAGE_MEMBERSHIP_META = ".sparse_image_membership.json"
 
@@ -2799,15 +2795,31 @@ def _run_selected_training_engine(
     resume: bool,
 ):
     """Run the selected engine training pipeline through one dispatch point."""
-    runner_map = {
-        "gsplat": run_gsplat_training,
-        "litegs": run_litegs_training,
+    context = {
+        "logger": logger,
+        "update_status": update_status,
+        "write_metrics": write_metrics,
+        "get_engine_output_dir": _get_engine_output_dir,
+        "materialize_eval_previews": _materialize_eval_previews,
+        "export_with_gsplat": _export_with_gsplat,
+        "parse_step_from_name": _parse_step_from_name,
+        "collect_eval_history": _collect_eval_history,
+        "write_json_atomic": _write_json_atomic,
+        "ensure_symlink": _ensure_symlink,
+        "prepare_pinhole_sparse_for_litegs": _prepare_pinhole_sparse_for_litegs,
+        "patch_litegs_opacity_decay": _patch_litegs_opacity_decay,
+        "find_latest_litegs_checkpoint": _find_latest_litegs_checkpoint,
+        "export_litegs_outputs": _export_litegs_outputs,
     }
-    try:
-        runner = runner_map[engine]
-    except KeyError as exc:
-        raise ValueError(f"Unsupported training engine: {engine}") from exc
-    return runner(image_dir, colmap_dir, output_dir, params, resume=resume)
+    return run_selected_engine(
+        engine,
+        image_dir,
+        colmap_dir,
+        output_dir,
+        params,
+        resume=resume,
+        context=context,
+    )
 
 
 def main():
