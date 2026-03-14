@@ -516,7 +516,7 @@ def process_project(project_id: str, params: ProcessParams | None = Body(None)):
         params_payload = dict(requested_params)
 
         # Repro defaults for provided COLMAP pipelines.
-        params_payload.setdefault("stage", "train_only")
+        params_payload.setdefault("stage", "full")
         params_payload.setdefault("max_steps", 30000)
         params_payload.setdefault("log_interval", 100)
         params_payload.setdefault("batch_size", 1)

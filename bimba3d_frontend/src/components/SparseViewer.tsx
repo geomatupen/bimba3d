@@ -169,10 +169,13 @@ function FocusController({ target, bboxSize }: { target?: [number, number, numbe
 
 function getApiBase() {
   const win = typeof window !== "undefined" ? (window as any) : {};
+  const hostFallback = typeof window !== "undefined"
+    ? `${window.location.protocol}//${window.location.hostname}:8005`
+    : "http://localhost:8005";
   return (
     win.__API_BASE__ ||
     (import.meta.env ? (import.meta.env.VITE_API_BASE as string) : null) ||
-    "http://localhost:8005"
+    hostFallback
   ).replace(/\/$/, "");
 }
 

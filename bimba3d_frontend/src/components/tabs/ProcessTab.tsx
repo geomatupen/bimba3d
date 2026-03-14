@@ -1173,7 +1173,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
         if (!features) return;
         setShow3DModel(true);
         setTopView('viewer');
-        const base = (window as any).__API_BASE__ || (api && api.defaults && api.defaults.baseURL) || 'http://localhost:8005';
+        const base = (window as any).__API_BASE__ || (api && api.defaults && api.defaults.baseURL) || `${window.location.protocol}//${window.location.hostname}:8005`;
         const res = await fetch(`${base}/projects/${projectId}/download/sparse.json`);
         if (!res.ok) return;
         const data = await res.json();

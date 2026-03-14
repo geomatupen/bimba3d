@@ -9,7 +9,7 @@ const isViteDevPort = port === '5173' || port === '5174';
 const baseURL = hostname === 'app.bimba3d.com'
   ? 'https://backend.bimba3d.com'
   : isViteDevPort
-    ? 'http://localhost:8005'
+    ? `${protocol}//${hostname || 'localhost'}:8005`
     : `${protocol}//${hostname}${port ? `:${port}` : ''}`;
 
 export const api = axios.create({
