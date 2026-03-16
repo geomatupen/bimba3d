@@ -1594,7 +1594,7 @@ def _export_with_gsplat(
         format="splat",
         save_to=str(splat_path),
     )
-    logger.info("✓ Exported .splat -> %s (%d bytes)", splat_path, splat_path.stat().st_size)
+    logger.info("Exported .splat -> %s (%d bytes)", splat_path, splat_path.stat().st_size)
 
     if export_ply:
         ply_path = output_dir / ply_name
@@ -1608,7 +1608,7 @@ def _export_with_gsplat(
             format="ply",
             save_to=str(ply_path),
         )
-        logger.info("✓ Exported .ply -> %s (%d bytes)", ply_path, ply_path.stat().st_size)
+        logger.info("Exported .ply -> %s (%d bytes)", ply_path, ply_path.stat().st_size)
 
 
 def _parse_step_from_name(name: str, prefix: str) -> int | None:
@@ -2235,7 +2235,13 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
     def stop_checker() -> bool:
         return stop_flag.exists()
 
-    def progress_callback(step: int, max_steps: int, loss: float) -> None:
+    def progress_callback(
+        step: int,
+        max_steps: int | None = None,
+        loss: float = 0.0,
+        **_: object,
+    ) -> None:
+        max_steps = int(max_steps if max_steps is not None else p.get("max_steps", 0))
         if mode == "modified" and step == modified_tune_interval:
             logger.info(
                 "Modified tuning window started at step %d; rule checks every %d steps until step %d",
