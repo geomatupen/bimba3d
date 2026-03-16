@@ -49,8 +49,8 @@ tmp/
 .serena/
 
 
-#scripts
-scripts/
+# scripts (root only)
+/scripts/
 
 # Installer artifacts
 installer/wix/Bimba3D-Setup.exe
