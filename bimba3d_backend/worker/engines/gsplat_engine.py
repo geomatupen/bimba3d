@@ -227,7 +227,18 @@ def run_training(
     def stop_checker() -> bool:
         return stop_flag.exists()
 
-    def progress_callback(step: int, max_steps_local: int, loss: float) -> None:
+    def progress_callback(
+        step: int,
+        max_steps_local: int | None = None,
+        loss: float = 0.0,
+        **kwargs: object,
+    ) -> None:
+        if max_steps_local is None:
+            raw_max_steps = kwargs.get("max_steps", max_steps)
+            try:
+                max_steps_local = int(raw_max_steps)
+            except Exception:
+                max_steps_local = int(max_steps)
         apply_modified_profile(step)
         requested_stop = stop_checker()
         status_text = "stopping" if requested_stop else "processing"
