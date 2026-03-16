@@ -3,7 +3,7 @@
   <Package
       Name="Bimba3D"
       Manufacturer="Bimba3D"
-      Version="1.0.0.0"
+      Version="1.0.1.0"
       UpgradeCode="B88A1C8E-6FD5-4D9B-98C2-3A7EE95F0D54"
       Language="1033"
       Scope="perMachine">
@@ -12,15 +12,31 @@
     <MediaTemplate EmbedCab="yes" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="Bimba3D">
-        <Component Id="cmpStarterReadme" Guid="*">
-          <File Id="filStarterReadme" Source="..\staging\README.txt" KeyPath="yes" />
-        </Component>
-      </Directory>
+      <Directory Id="INSTALLFOLDER" Name="Bimba3D" />
     </StandardDirectory>
 
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="Bimba3D" />
+    </StandardDirectory>
+
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="..\staging\**" />
+    </ComponentGroup>
+
+    <Component Id="cmpStartMenuShortcut" Directory="ApplicationProgramsFolder" Guid="*">
+      <Shortcut
+          Id="scStartBimba3D"
+          Name="Bimba3D"
+          Description="Start Bimba3D backend + frontend"
+          Target="[INSTALLFOLDER]start_bimba3d.bat"
+          WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="RemoveApplicationProgramsFolder" On="uninstall" />
+      <RegistryValue Root="HKCU" Key="Software\Bimba3D" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
     <Feature Id="MainFeature" Title="Bimba3D" Level="1">
-      <ComponentRef Id="cmpStarterReadme" />
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="cmpStartMenuShortcut" />
     </Feature>
   </Package>
 </Wix>
