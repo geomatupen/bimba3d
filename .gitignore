@@ -57,9 +57,12 @@ installer/wix/Bimba3D-Setup.exe
 installer/wix/*.wixpdb
 installer/wix/*.log
 installer/wix/logs/
+installer/wix/staging/
+installer/wix/installer/
 installer/wix/payloads/*.exe
 installer/wix/payloads/*.msi
 installer/wix/payloads/*.zip
+installer/wix/payloads/*.wixpdb
 installer/wix/payloads/*.7z
 installer/wix/payloads/*.nupkg
 installer/wix/payloads/*.tmp

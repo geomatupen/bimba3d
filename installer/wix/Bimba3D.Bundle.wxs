@@ -66,7 +66,7 @@
           PerMachine="yes"
           Vital="yes"
           Compressed="yes"
-          Permanent="no" />
+          Permanent="yes" />
 
       <!-- VC++ Runtime -->
       <ExePackage
@@ -79,7 +79,7 @@
           PerMachine="yes"
           Vital="yes"
           Compressed="yes"
-          Permanent="no" />
+          Permanent="yes" />
 
       <!-- CUDA Toolkit (or replace with runtime-only package strategy) -->
       <ExePackage
@@ -91,7 +91,7 @@
           PerMachine="yes"
           Vital="yes"
           Compressed="yes"
-          Permanent="no" />
+          Permanent="yes" />
 
       <!-- COLMAP zip extracted by helper package/script -->
       <ExePackage
@@ -103,7 +103,7 @@
           PerMachine="yes"
           Vital="yes"
           Compressed="yes"
-          Permanent="no" />
+          Permanent="yes" />
 
       <!-- Bimba3D app payload -->
       <MsiPackage

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+      Name="Bimba3D"
+      Manufacturer="Bimba3D"
+      Version="1.0.0.0"
+      UpgradeCode="B88A1C8E-6FD5-4D9B-98C2-3A7EE95F0D54"
+      Language="1033"
+      Scope="perMachine">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Bimba3D is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Bimba3D">
+        <Component Id="cmpStarterReadme" Guid="*">
+          <File Id="filStarterReadme" Source="..\staging\README.txt" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="Bimba3D" Level="1">
+      <ComponentRef Id="cmpStarterReadme" />
+    </Feature>
+  </Package>
+</Wix>
