@@ -15,6 +15,31 @@ This repository contains both services:
 - COLMAP is **not** a pip package here; install it separately on the OS and make sure `colmap -h` works in your terminal.
 - If Windows `colmap.exe` behaves oddly, set `COLMAP_EXE` to `...\\COLMAP.bat` before starting backend.
 - On Windows, if `torch.cuda.is_available()` is false, reinstall CUDA-enabled PyTorch wheels explicitly (requirements file alone may install CPU wheels).
+- For local `gsplat` training on Windows, CUDA Toolkit (`nvcc`) https://developer.nvidia.com/cuda-downloads is required in addition to NVIDIA drivers and CUDA-enabled PyTorch.
+
+### Windows CUDA-safe install order (torch + gsplat)
+If you need local GPU training on Windows, use this order to avoid `gsplat` replacing CUDA torch with an incompatible build:
+
+```powershell
+conda deactivate
+.\.venv\Scripts\activate
+
+python -m pip uninstall -y torch torchvision torchaudio gsplat
+python -m pip cache purge
+
+python -m pip install --index-url https://download.pytorch.org/whl/cu121 torch==2.5.1+cu121 torchvision==0.20.1+cu121 torchaudio==2.5.1+cu121
+python -m pip install --no-deps gsplat==1.5.3
+```
+
+Verify:
+
+```powershell
+python -c "import torch, gsplat.cuda._wrapper as w; print(torch.__version__, torch.version.cuda, torch.cuda.is_available(), getattr(w,'_C',None) is not None)"
+```
+
+Expected: `2.5.1+cu121 12.1 True True` (or equivalent CUDA-enabled values).
+
+If `nvcc --version` is not recognized, install CUDA Toolkit (12.x) from NVIDIA and ensure CUDA `bin` is on PATH (for example `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.1\bin`).
 
 ## 1) Install
 From repo root:

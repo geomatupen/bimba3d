@@ -4,9 +4,9 @@ python-multipart
 pydantic
 pydantic-settings
 numpy
-torch
-torchvision
-gsplat
+torch==2.5.1
+torchvision==0.20.1
+gsplat==1.5.3
 Pillow
 imageio
 tqdm

@@ -428,6 +428,21 @@ def run_training(
     if device == "cpu":
         raise RuntimeError("Upstream simple_trainer currently requires CUDA in this worker path")
 
+    try:
+        import gsplat.cuda._wrapper as _gsplat_cuda_wrapper
+        _gsplat_cuda_ext = getattr(_gsplat_cuda_wrapper, "_C", None)
+        _gsplat_cuda_ready = _gsplat_cuda_ext is not None and hasattr(_gsplat_cuda_ext, "CameraModelType")
+    except Exception:
+        _gsplat_cuda_ready = False
+
+    if not _gsplat_cuda_ready:
+        msg = (
+            "gsplat CUDA extension is unavailable. Install CUDA Toolkit and a CUDA-enabled PyTorch build, "
+            "then reinstall gsplat so CUDA extensions can be built/loaded."
+        )
+        update_status(project_dir, "failed", progress=55, stage="training", message=msg, error=msg)
+        raise RuntimeError(msg)
+
     runner = Runner(local_rank=0, world_rank=0, world_size=1, cfg=cfg)
     runner_ref["runner"] = runner
     stop_reason = runner.train()
