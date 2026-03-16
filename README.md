@@ -96,8 +96,7 @@ Backend supports both runtime modes for processing:
 - `local`
 
 Default mode behavior:
-- Windows (`os.name == "nt"`): defaults to `local`
-- Linux/macOS: defaults to `docker`
+- All platforms: defaults to `local`
 
 Set via env before starting backend:
 

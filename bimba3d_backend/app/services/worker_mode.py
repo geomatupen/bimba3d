@@ -27,7 +27,4 @@ def resolve_worker_mode(preferred: str | None = None) -> str:
     if legacy is not None:
         return "docker" if legacy.strip().lower() == "true" else "local"
 
-    if os.name == "nt":
-        return "local"
-
-    return "docker"
+    return "local"
