@@ -181,19 +181,50 @@ if "%NEED_BOOTSTRAP%"=="1" (
     )
 
     if /I "%TORCH_FLAVOR%"=="cu121" (
-        set "VCVARS64=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat"
-        set "VSDEVCMD=C:\Program Files\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat"
-        if exist "%VCVARS64%" (
-            call "%VCVARS64%" amd64 >nul
-        ) else if exist "%VSDEVCMD%" (
-            call "%VSDEVCMD%" -arch=x64 -host_arch=x64 -no_logo >nul
-        ) else (
-            echo Warning: Visual Studio Build Tools environment scripts not found. gsplat build may fail.
+        set "NEED_VC_X64=1"
+        where cl >nul 2>nul
+        if not errorlevel 1 (
+            where cl > "%TEMP%\bimba3d_cl_where.txt" 2>nul
+            findstr /I /C:"Hostx64\x64\cl.exe" "%TEMP%\bimba3d_cl_where.txt" >nul 2>nul
+            if not errorlevel 1 set "NEED_VC_X64=0"
+            del "%TEMP%\bimba3d_cl_where.txt" >nul 2>nul
+        )
+
+        if "%NEED_VC_X64%"=="1" (
+            set "VSWHERE="
+            set "VSINSTALL="
+            set "VCVARS64="
+            set "VSDEVCMD="
+
+            for /f "delims=" %%I in ('where vswhere 2^>nul') do if not defined VSWHERE set "VSWHERE=%%~fI"
+            if not defined VSWHERE if exist "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+            if not defined VSWHERE if exist "%ProgramFiles%\Microsoft Visual Studio\Installer\vswhere.exe" set "VSWHERE=%ProgramFiles%\Microsoft Visual Studio\Installer\vswhere.exe"
+
+            if defined VSWHERE (
+                for /f "usebackq delims=" %%I in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do if not defined VSINSTALL set "VSINSTALL=%%~I"
+                if defined VSINSTALL (
+                    set "VCVARS64=%VSINSTALL%\VC\Auxiliary\Build\vcvarsall.bat"
+                    set "VSDEVCMD=%VSINSTALL%\Common7\Tools\VsDevCmd.bat"
+                )
+            )
+
+            if defined VCVARS64 if exist "%VCVARS64%" (
+                call "%VCVARS64%" amd64 >nul
+            ) else if defined VSDEVCMD if exist "%VSDEVCMD%" (
+                call "%VSDEVCMD%" -arch=x64 -host_arch=x64 -no_logo >nul
+            ) else (
+                echo Warning: Visual Studio Build Tools x64 environment scripts were not found automatically. gsplat build may fail.
+            )
         )
 
         where cl >nul 2>nul
         if errorlevel 1 (
             echo Warning: cl.exe is not available in current shell. Ensure Visual Studio 2022 Build Tools x64 is installed.
+        ) else (
+            where cl > "%TEMP%\bimba3d_cl_where.txt" 2>nul
+            findstr /I /C:"Hostx64\x64\cl.exe" "%TEMP%\bimba3d_cl_where.txt" >nul 2>nul
+            if errorlevel 1 echo Warning: cl.exe does not appear to be Hostx64\x64. If gsplat build fails, run vcvarsall.bat amd64.
+            del "%TEMP%\bimba3d_cl_where.txt" >nul 2>nul
         )
 
         "%VENV_PY%" -m pip install --force-reinstall ninja
