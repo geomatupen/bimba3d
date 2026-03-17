@@ -60,31 +60,50 @@ def _load_msvc_build_env(logger) -> bool:
 
     vcvars = root / "VC" / "Auxiliary" / "Build" / "vcvars64.bat"
     devcmd = root / "Common7" / "Tools" / "VsDevCmd.bat"
-    bootstrap_cmd = None
+
+    bootstrap_cmds: list[str] = []
     if vcvars.exists():
-        bootstrap_cmd = f'"{vcvars}" >nul 2>nul && set'
-    elif devcmd.exists():
-        bootstrap_cmd = f'"{devcmd}" -arch=x64 -host_arch=x64 >nul 2>nul && set'
-    else:
+        bootstrap_cmds.append(f'call "{vcvars}" && set')
+    if devcmd.exists():
+        bootstrap_cmds.append(f'call "{devcmd}" -arch=x64 -host_arch=x64 -no_logo && set')
+
+    if not bootstrap_cmds:
         logger.warning("No vcvars64.bat or VsDevCmd.bat found under %s", root)
         return False
 
-    try:
-        env_dump = subprocess.run(
-            ["cmd.exe", "/d", "/s", "/c", bootstrap_cmd],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        for line in (env_dump.stdout or "").splitlines():
-            if "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            if key:
-                os.environ[key] = value
-    except Exception as exc:
-        logger.warning("Failed to load MSVC environment from %s: %s", root, exc)
-        return False
+    loaded = False
+    for bootstrap_cmd in bootstrap_cmds:
+        try:
+            env_dump = subprocess.run(
+                ["cmd.exe", "/d", "/s", "/c", bootstrap_cmd],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            for line in (env_dump.stdout or "").splitlines():
+                if "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                if key:
+                    os.environ[key] = value
+            loaded = True
+            break
+        except Exception as exc:
+            logger.warning("MSVC env command failed (%s): %s", bootstrap_cmd, exc)
+
+    if not loaded:
+        msvc_glob = root / "VC" / "Tools" / "MSVC"
+        if msvc_glob.exists():
+            versions = sorted([p for p in msvc_glob.iterdir() if p.is_dir()])
+            if versions:
+                latest = versions[-1]
+                cl_dir = latest / "bin" / "Hostx64" / "x64"
+                if (cl_dir / "cl.exe").exists():
+                    os.environ["PATH"] = str(cl_dir) + os.pathsep + os.environ.get("PATH", "")
+                    logger.warning(
+                        "Fell back to direct cl.exe PATH injection from %s (INCLUDE/LIB env may be incomplete).",
+                        cl_dir,
+                    )
 
     if shutil.which("cl"):
         logger.info("Loaded MSVC build environment for gsplat CUDA extension.")
