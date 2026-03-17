@@ -2938,33 +2938,26 @@ def _run_selected_training_engine(
             raise
 
         project_dir = Path(output_dir).parent
-        warning_message = (
-            "⚠️ gsplat (CUDA) training is unavailable on this machine. "
-            "Switching to LiteGS fallback. Install/repair NVIDIA driver + CUDA toolkit + VS Build Tools to re-enable gsplat."
+        guidance = (
+            "CUDA is not available for gsplat training on this machine. "
+            "Install compatible x64 components and retry. "
+            "Required: NVIDIA driver + CUDA Toolkit x64 (recommended 12.5 for this build) + Visual Studio 2022 Build Tools x64 with C++ workload. "
+            "CUDA compatibility/downloads: https://developer.nvidia.com/cuda-downloads . "
+            "Visual Studio Build Tools: https://visualstudio.microsoft.com/visual-cpp-build-tools/ . "
+            "Do not use x86 installers."
         )
-        logger.warning("gsplat failed; falling back to litegs. Cause: %s", exc, exc_info=True)
+        logger.error("gsplat training failed with CUDA/toolchain issue: %s", exc, exc_info=True)
         update_status(
             project_dir,
-            "processing",
+            "failed",
             progress=55,
             stage="training",
             stage_progress=5,
-            message=warning_message,
-            engine="litegs",
+            message=guidance,
+            error=f"gsplat training requires CUDA + VS Build Tools x64. Root error: {exc}",
+            engine="gsplat",
         )
-
-        fallback_params = dict(params or {})
-        fallback_params["engine"] = "litegs"
-
-        return run_selected_engine(
-            "litegs",
-            image_dir,
-            colmap_dir,
-            output_dir,
-            fallback_params,
-            resume=resume,
-            context=context,
-        )
+        raise RuntimeError(guidance) from exc
 
 
 def main():
