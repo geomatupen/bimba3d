@@ -71,16 +71,29 @@ setlocal
 
 cd /d "%~dp0"
 
-set "PYEXE=python"
-where python >nul 2>nul
-if errorlevel 1 (
-  where py >nul 2>nul
+set "PYEXE="
+if exist "C:\Program Files\Python312\python.exe" (
+  set "PYEXE=C:\Program Files\Python312\python.exe"
+) else (
+  where python >nul 2>nul
   if errorlevel 1 (
-    echo Python is not installed. Please install Python 3.12+ and try again.
+     where py >nul 2>nul
+     if errorlevel 1 (
+        echo Python is not installed. Please install Python 3.12+ and try again.
+        pause
+        exit /b 1
+     )
+     set "PYEXE=py -3"
+  ) else (
+     set "PYEXE=python"
+  )
+)
+
+%PYEXE% -c "import sys; raise SystemExit(0 if sys.maxsize > 2**32 else 1)" >nul 2>nul
+if errorlevel 1 (
+    echo Python interpreter is not 64-bit. Please install/use x64 Python and try again.
     pause
     exit /b 1
-  )
-  set "PYEXE=py -3"
 )
 
 set "RUNTIME_ROOT=%ProgramData%\Bimba3D\runtime"
@@ -103,16 +116,63 @@ if not exist "%VENV_PY%" (
 )
 
 set "PYTHONNOUSERSITE=1"
+set "TORCH_INDEX=https://download.pytorch.org/whl/cu121"
+set "TORCH_VERSION=2.5.1+cu121"
+set "GSPLAT_VERSION=1.5.3"
+set "CUDA_HOME=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5"
+set "CUDA_PATH=%CUDA_HOME%"
+set "DISTUTILS_USE_SDK=1"
+set "PATH=%CUDA_PATH%\bin;%CUDA_PATH%\libnvvp;%PATH%"
 
-"%VENV_PY%" -m pip install --upgrade pip setuptools wheel
+"%VENV_PY%" -m pip install --upgrade pip setuptools==69.5.1 wheel
+if errorlevel 1 (
+    echo Failed to install Python packaging tooling.
+    pause
+    exit /b 1
+)
+
+"%VENV_PY%" -m pip install --index-url %TORCH_INDEX% --force-reinstall "torch==%TORCH_VERSION%"
+if errorlevel 1 (
+    echo Failed to install CUDA-enabled torch %TORCH_VERSION%.
+    pause
+    exit /b 1
+)
+
 "%VENV_PY%" -m pip install -r bimba3d_backend\requirements.windows.txt
+if errorlevel 1 (
+    echo Failed to install backend requirements.
+    pause
+    exit /b 1
+)
 
 "%VENV_PY%" -c "import torch; import gsplat.cuda._wrapper as w; ok=torch.cuda.is_available() and (getattr(w,'_C',None) is not None or hasattr(w,'_make_lazy_cuda_obj')); raise SystemExit(0 if ok else 1)" >nul 2>nul
 if errorlevel 1 (
-    echo CUDA-enabled torch/gsplat not ready. Installing training dependencies...
-    "%VENV_PY%" -m pip install --index-url https://download.pytorch.org/whl/cu121 torch
-    "%VENV_PY%" -m pip install ninja
-    "%VENV_PY%" -m pip install --no-binary=gsplat gsplat --no-build-isolation -v
+    echo CUDA-enabled torch/gsplat not ready. Reinstalling pinned training dependencies...
+    "%VENV_PY%" -m pip install --index-url %TORCH_INDEX% --force-reinstall "torch==%TORCH_VERSION%"
+    if errorlevel 1 (
+        echo Failed to reinstall CUDA-enabled torch %TORCH_VERSION%.
+        pause
+        exit /b 1
+    )
+    "%VENV_PY%" -m pip install --force-reinstall ninja
+    if errorlevel 1 (
+        echo Failed to install ninja.
+        pause
+        exit /b 1
+    )
+    "%VENV_PY%" -m pip install --force-reinstall --no-binary=gsplat "gsplat==%GSPLAT_VERSION%" --no-build-isolation -v
+    if errorlevel 1 (
+        echo Failed to build/install gsplat %GSPLAT_VERSION%.
+        pause
+        exit /b 1
+    )
+    "%VENV_PY%" -c "import torch; import gsplat.cuda._wrapper as w; ok=torch.cuda.is_available() and (getattr(w,'_C',None) is not None or hasattr(w,'_make_lazy_cuda_obj')); raise SystemExit(0 if ok else 1)"
+    if errorlevel 1 (
+        echo CUDA is still unavailable in runtime venv after reinstall.
+        echo Please verify NVIDIA driver + CUDA Toolkit + Visual Studio Build Tools installation.
+        pause
+        exit /b 1
+    )
 )
 
 set "WORKER_MODE=local"

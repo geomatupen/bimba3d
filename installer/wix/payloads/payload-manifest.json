@@ -3,6 +3,12 @@
     "notes":  "Replace all sha256 values before release.",
     "payloads":  [
                      {
+                         "id":  "python_3_12_8_x64",
+                         "file":  "python-3.12.8-amd64.exe",
+                         "url":  "https://www.python.org/ftp/python/3.12.8/python-3.12.8-amd64.exe",
+                         "sha256":  "71bd44e6b0e91c17558963557e4cdb80b483de9b0a0a9717f06cf896f95ab598"
+                     },
+                     {
                          "id":  "vs_buildtools_2022",
                          "file":  "vs_BuildTools.exe",
                          "url":  "https://aka.ms/vs/17/release/vs_BuildTools.exe",
@@ -30,7 +36,7 @@
                          "id":  "bimba3d_app_msi",
                          "file":  "Bimba3D.msi",
                          "url":  "https://github.com/geomatupen/bimba3d/releases/latest/download/Bimba3D.msi",
-                         "sha256":  "d059fd37e801fa25adcefaf3d8828a939c780a4ef879cdce1bb9908f37568b92"
+                         "sha256":  "13b05bfd5a740d9520599ae41e8d6c0adc88c82a44d31e87e0d094f4619f7578"
                      }
                  ]
 }

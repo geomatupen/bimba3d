@@ -23,8 +23,9 @@
     <Variable Name="LogRoot" Type="string" Value="[ProgramDataFolder]Bimba3D\\Logs" />
     <Variable Name="ColmapInstallDir" Type="string" Value="C:\\ProgramData\\Bimba3D\\third_party\\colmap" />
     <Variable Name="CudaInstallDir" Type="string" Value="C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.5" />
+    <Variable Name="PythonInstallDir" Type="string" Value="C:\\Program Files\\Python312" />
     <Variable Name="ColmapVersion" Type="string" Value="4.0.1" />
-    <Variable Name="InstallBuildTools" Type="numeric" Value="0" />
+    <Variable Name="InstallBuildTools" Type="numeric" Value="1" />
 
     <util:RegistrySearch
         Id="SearchVCRedistInstalled"
@@ -47,6 +48,11 @@
         Path="[CudaInstallDir]\\bin\\nvcc.exe"
         Variable="CUDA_NVCC_PATH"
         Result="exists" />
+       <util:FileSearch
+           Id="SearchPythonX64"
+           Path="[PythonInstallDir]\\python.exe"
+           Variable="PYTHON_X64_EXISTS"
+           Result="exists" />
 
     <util:FileSearch
         Id="SearchColmapBat"
@@ -63,6 +69,17 @@
           InstallArguments="--quiet --wait --norestart --nocache --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
           DetectCondition="VSBT_17_PATH"
           InstallCondition="InstallBuildTools = 1"
+          PerMachine="yes"
+          Vital="yes"
+          Compressed="yes"
+          Permanent="yes" />
+
+      <ExePackage
+          Id="Python312X64"
+          DisplayName="Python 3.12 (x64)"
+          SourceFile="payloads\\python-3.12.8-amd64.exe"
+          InstallArguments="/quiet InstallAllUsers=1 PrependPath=1 Include_pip=1 Include_test=0 Include_tcltk=0 Include_doc=0 Include_launcher=1 Shortcuts=0 TargetDir=&quot;[PythonInstallDir]&quot;"
+          DetectCondition="PYTHON_X64_EXISTS"
           PerMachine="yes"
           Vital="yes"
           Compressed="yes"
