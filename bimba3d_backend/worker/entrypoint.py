@@ -2923,15 +2923,48 @@ def _run_selected_training_engine(
         "find_latest_litegs_checkpoint": _find_latest_litegs_checkpoint,
         "export_litegs_outputs": _export_litegs_outputs,
     }
-    return run_selected_engine(
-        engine,
-        image_dir,
-        colmap_dir,
-        output_dir,
-        params,
-        resume=resume,
-        context=context,
-    )
+    try:
+        return run_selected_engine(
+            engine,
+            image_dir,
+            colmap_dir,
+            output_dir,
+            params,
+            resume=resume,
+            context=context,
+        )
+    except Exception as exc:
+        if engine != "gsplat":
+            raise
+
+        project_dir = Path(output_dir).parent
+        warning_message = (
+            "⚠️ gsplat (CUDA) training is unavailable on this machine. "
+            "Switching to LiteGS fallback. Install/repair NVIDIA driver + CUDA toolkit + VS Build Tools to re-enable gsplat."
+        )
+        logger.warning("gsplat failed; falling back to litegs. Cause: %s", exc, exc_info=True)
+        update_status(
+            project_dir,
+            "processing",
+            progress=55,
+            stage="training",
+            stage_progress=5,
+            message=warning_message,
+            engine="litegs",
+        )
+
+        fallback_params = dict(params or {})
+        fallback_params["engine"] = "litegs"
+
+        return run_selected_engine(
+            "litegs",
+            image_dir,
+            colmap_dir,
+            output_dir,
+            fallback_params,
+            resume=resume,
+            context=context,
+        )
 
 
 def main():

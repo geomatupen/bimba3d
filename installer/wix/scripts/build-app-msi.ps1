@@ -214,6 +214,96 @@ start "" http://127.0.0.1:8005
 "%VENV_PY%" -m uvicorn bimba3d_backend.app.main:app --host 127.0.0.1 --port 8005
 "@ | Set-Content -Path $launcherPath -Encoding ASCII
 
+$uninstallPs1Path = Join-Path $StagingDir "uninstall_bimba3d.ps1"
+@"
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+
+
+
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "Uninstall Bimba3D"
+$form.Size = New-Object System.Drawing.Size(520,220)
+$form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
+$form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+$form.MaximizeBox = $false
+$form.MinimizeBox = $false
+
+$label = New-Object System.Windows.Forms.Label
+$label.Text = "Uninstall Bimba3D from this machine."
+$label.AutoSize = $true
+$label.Location = New-Object System.Drawing.Point(20,20)
+$form.Controls.Add($label)
+
+$checkbox = New-Object System.Windows.Forms.CheckBox
+$checkbox.Text = "Also delete all project data (C:\ProgramData\Bimba3D\data\projects)"
+$checkbox.AutoSize = $true
+$checkbox.Checked = $false
+$checkbox.Location = New-Object System.Drawing.Point(20,60)
+$form.Controls.Add($checkbox)
+
+$btnUninstall = New-Object System.Windows.Forms.Button
+$btnUninstall.Text = "Uninstall"
+$btnUninstall.Size = New-Object System.Drawing.Size(110,32)
+$btnUninstall.Location = New-Object System.Drawing.Point(280,120)
+$btnUninstall.DialogResult = [System.Windows.Forms.DialogResult]::OK
+$form.Controls.Add($btnUninstall)
+
+$btnCancel = New-Object System.Windows.Forms.Button
+$btnCancel.Text = "Cancel"
+$btnCancel.Size = New-Object System.Drawing.Size(110,32)
+$btnCancel.Location = New-Object System.Drawing.Point(400,120)
+$btnCancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+$form.Controls.Add($btnCancel)
+
+$form.AcceptButton = $btnUninstall
+$form.CancelButton = $btnCancel
+
+$result = $form.ShowDialog()
+if ($result -ne [System.Windows.Forms.DialogResult]::OK) {
+    exit 0
+}
+
+$deleteProjects = if ($checkbox.Checked) { "1" } else { "0" }
+
+$uninstallKeys = @(
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+)
+
+$productCode = $null
+foreach ($key in $uninstallKeys) {
+    $entry = Get-ItemProperty -Path $key -ErrorAction SilentlyContinue |
+        Where-Object { $_.DisplayName -eq "Bimba3D" -and $_.PSChildName -match "^\{[0-9A-Fa-f-]+\}$" } |
+        Select-Object -First 1
+    if ($entry) {
+        $productCode = $entry.PSChildName
+        break
+    }
+}
+
+if (-not $productCode) {
+    [System.Windows.Forms.MessageBox]::Show(
+        "Could not locate Bimba3D product code for uninstall.",
+        "Uninstall Bimba3D",
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Error
+    ) | Out-Null
+    exit 1
+}
+
+$args = @("/x", $productCode, "/passive", "DELETE_PROJECTS=$deleteProjects")
+Start-Process -FilePath "msiexec.exe" -ArgumentList $args -Wait
+exit $LASTEXITCODE
+"@ | Set-Content -Path $uninstallPs1Path -Encoding UTF8
+
+$uninstallCmdPath = Join-Path $StagingDir "uninstall_bimba3d.cmd"
+@"
+@echo off
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0uninstall_bimba3d.ps1"
+"@ | Set-Content -Path $uninstallCmdPath -Encoding ASCII
+
 $readmePath = Join-Path $StagingDir "README.txt"
 @(
     "Bimba3D packaged application"
@@ -221,6 +311,7 @@ $readmePath = Join-Path $StagingDir "README.txt"
     ""
     "Start the app using start_bimba3d.bat"
     "The launcher creates a local .venv on first run and installs Python dependencies."
+    "Use uninstall_bimba3d.cmd to uninstall with optional project-data deletion."
 ) | Set-Content -Path $readmePath -Encoding UTF8
 
 Push-Location (Split-Path -Parent $WxsPath)
