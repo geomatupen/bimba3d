@@ -18,6 +18,22 @@
     <Property Id="BIMBA3D_PROJECTS_ROOT" Value="C:\Bimba3D_NoDelete" />
     <SetProperty Id="BIMBA3D_PROJECTS_ROOT" Value="C:\ProgramData\Bimba3D\data\projects" After="AppSearch" Condition="DELETE_PROJECTS = 1" />
 
+    <CustomAction Id="SetRunRuntimeBootstrapCmd"
+                  Property="RunRuntimeBootstrap"
+                  Value="&quot;[SystemFolder]cmd.exe&quot; /c &quot;&quot;[INSTALLFOLDER]bootstrap_runtime.bat&quot;&quot;"
+                  Execute="immediate" />
+    <CustomAction Id="RunRuntimeBootstrap"
+                  BinaryRef="Wix4UtilCA_X86"
+                  DllEntry="WixQuietExec"
+                  Execute="deferred"
+                  Return="check"
+                  Impersonate="no" />
+
+    <InstallExecuteSequence>
+      <Custom Action="SetRunRuntimeBootstrapCmd" After="InstallFiles" Condition="NOT Installed" />
+      <Custom Action="RunRuntimeBootstrap" After="SetRunRuntimeBootstrapCmd" Condition="NOT Installed" />
+    </InstallExecuteSequence>
+
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="Bimba3D" />
     </StandardDirectory>
