@@ -417,8 +417,8 @@ $readmePath = Join-Path $StagingDir "README.txt"
     "Generated: $(Get-Date -Format o)"
     ""
     "Start the app using start_bimba3d.bat"
-    "Runtime bootstrap executes during MSI installation via bootstrap_runtime.bat."
-    "If installation fails, check MSI/Burn logs for bootstrap output."
+    "Runtime bootstrap executes during bundle installation in staged steps (venv/torch/gsplat/requirements)."
+    "If installation fails, check Burn/MSI logs for runtime bootstrap output."
     "Use uninstall_bimba3d.cmd to uninstall with optional project-data deletion."
 ) | Set-Content -Path $readmePath -Encoding UTF8
 
