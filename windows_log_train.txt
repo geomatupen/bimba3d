@@ -1,52 +1,166 @@
-2026-03-16 19:01:52,383 - INFO - 2026-03-16 19:01:52,380 - INFO - Initialized project log file: C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\processing.log
-2026-03-16 19:01:52,383 - INFO - 2026-03-16 19:01:52,380 - INFO - Preparing resized image set (<=1600 px) for project 1fba6739-87c3-4639-b637-0c93ac588ba6
-2026-03-16 19:01:52,400 - INFO - Prepared resized image set at C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\images_resized ({'total': 38, 'resized': 0, 'copied': 0, 'reused': 38, 'failed': 0, 'removed': 0})
-2026-03-16 19:01:52,402 - INFO - 2026-03-16 19:01:52,400 - INFO - Prepared resized image set at C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\images_resized ({'total': 38, 'resized': 0, 'copied': 0, 'reused': 38, 'failed': 0, 'removed': 0})
-2026-03-16 19:01:52,413 - INFO - Sparse candidate C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\outputs\sparse\0 contains 21 images and 1177 points
-2026-03-16 19:01:52,413 - INFO - 2026-03-16 19:01:52,413 - INFO - Sparse candidate C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\outputs\sparse\0 contains 21 images and 1177 points
-2026-03-16 19:01:52,417 - INFO - Recorded best sparse reconstruction 0 (21 images, 1177 points)
-2026-03-16 19:01:52,417 - INFO - Using best sparse candidate 0 (21 images, 1177 points)
-2026-03-16 19:01:52,417 - INFO - 2026-03-16 19:01:52,417 - INFO - Recorded best sparse reconstruction 0 (21 images, 1177 points)
-2026-03-16 19:01:52,418 - INFO - 2026-03-16 19:01:52,417 - INFO - Using best sparse candidate 0 (21 images, 1177 points)
-2026-03-16 19:01:59,101 - INFO - Starting gsplat training (upstream simple_trainer path)...
-2026-03-16 19:01:59,101 - INFO - 2026-03-16 19:01:59,101 - INFO - Starting gsplat training (upstream simple_trainer path)...
-2026-03-16 19:01:59,234 - WARNING - Symlink privilege missing on Windows for C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\outputs\engines\gsplat\images -> C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\images_resized; falling back to copy.
-2026-03-16 19:01:59,234 - INFO - 2026-03-16 19:01:59,234 - WARNING - Symlink privilege missing on Windows for C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\outputs\engines\gsplat\images -> C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\images_resized; falling back to copy.
-2026-03-16 19:01:59,278 - WARNING - Symlink privilege missing on Windows for C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\outputs\engines\gsplat\sparse\0 -> C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\outputs\sparse\0; falling back to copy.
-2026-03-16 19:01:59,280 - INFO - 2026-03-16 19:01:59,278 - WARNING - Symlink privilege missing on Windows for C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\outputs\engines\gsplat\sparse\0 -> C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\outputs\sparse\0; falling back to copy.
-2026-03-16 19:01:59,284 - INFO - GSPLAT logging cadence: snapshot every 100 steps (config key: log_interval); tqdm=disabled
-2026-03-16 19:01:59,284 - INFO - 2026-03-16 19:01:59,284 - INFO - GSPLAT logging cadence: snapshot every 100 steps (config key: log_interval); tqdm=disabled
-2026-03-16 19:02:00,366 - INFO - C:\Users\ROG\Documents\bimba3d\bimba3d\.venv\Lib\site-packages\torchmetrics\functional\image\lpips.py:332: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
-2026-03-16 19:02:00,366 - INFO -   self.load_state_dict(torch.load(model_path, map_location="cpu"), strict=False)
-2026-03-16 19:02:19,485 - INFO - Updated preview_latest.png from eval step 300
-2026-03-16 19:02:19,485 - INFO - 2026-03-16 19:02:19,485 - INFO - Updated preview_latest.png from eval step 300
-2026-03-16 19:02:19,973 - INFO - Training complete, exporting final checkpoint...
-2026-03-16 19:02:19,974 - INFO - 2026-03-16 19:02:19,973 - INFO - Training complete, exporting final checkpoint...
-2026-03-16 19:02:21,479 - INFO - Exporting checkpoint: C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\outputs\engines\gsplat\ckpts\ckpt_299_rank0.pt
-2026-03-16 19:02:21,479 - INFO - 2026-03-16 19:02:21,479 - INFO - Exporting checkpoint: C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\outputs\engines\gsplat\ckpts\ckpt_299_rank0.pt
-2026-03-16 19:02:21,484 - INFO - C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\worker\entrypoint.py:1539: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
-2026-03-16 19:02:21,484 - INFO -   ckpt = torch.load(checkpoint_path, map_location="cpu")
-2026-03-16 19:02:21,484 - INFO - Exporting with gsplat exporter | means (1177, 3), scales (1177, 3), quats (1177, 4), opacities (1177,), sh0 (1177, 1, 3), shN (1177, 15, 3)
-2026-03-16 19:02:21,484 - INFO - 2026-03-16 19:02:21,484 - INFO - Exporting with gsplat exporter | means (1177, 3), scales (1177, 3), quats (1177, 4), opacities (1177,), sh0 (1177, 1, 3), shN (1177, 15, 3)
-2026-03-16 19:02:21,489 - INFO - Exported .splat -> C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\outputs\engines\gsplat\splats.splat (37664 bytes)
-2026-03-16 19:02:21,489 - INFO - 2026-03-16 19:02:21,489 - INFO - Exported .splat -> C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\outputs\engines\gsplat\splats.splat (37664 bytes)
-2026-03-16 19:02:21,494 - INFO - Exported .ply -> C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\outputs\engines\gsplat\splats.ply (279247 bytes)
-2026-03-16 19:02:21,494 - INFO - 2026-03-16 19:02:21,494 - INFO - Exported .ply -> C:\Users\ROG\Documents\bimba3d\bimba3d\bimba3d_backend\data\projects\1fba6739-87c3-4639-b637-0c93ac588ba6\outputs\engines\gsplat\splats.ply (279247 bytes)
-2026-03-16 19:02:21,496 - INFO - Updated preview_latest.png from eval step 300
-2026-03-16 19:02:21,496 - INFO - 2026-03-16 19:02:21,496 - INFO - Updated preview_latest.png from eval step 300
-2026-03-16 19:02:21,502 - INFO - Training completed
-2026-03-16 19:02:21,502 - INFO - Pipeline completed successfully
-2026-03-16 19:02:21,502 - INFO - 2026-03-16 19:02:21,502 - INFO - Training completed
-2026-03-16 19:02:21,506 - INFO - 2026-03-16 19:02:21,502 - INFO - Pipeline completed successfully
-2026-03-16 19:02:21,507 - INFO - [Parser] 21 images, taken by 1 cameras.
-2026-03-16 19:02:21,507 - INFO - Warning: COLMAP Camera is not PINHOLE. Images have distortion.
-2026-03-16 19:02:21,507 - INFO - Scene scale: 1.4697615565391635
-2026-03-16 19:02:21,509 - INFO - Model initialized. Number of GS: 1177
-2026-03-16 19:02:21,509 - INFO - Progress callback failed at step 0: run_training.<locals>.progress_callback() got an unexpected keyword argument 'max_steps'
-2026-03-16 19:02:21,509 - INFO - Progress callback failed at step 99: run_training.<locals>.progress_callback() got an unexpected keyword argument 'max_steps'
-2026-03-16 19:02:21,509 - INFO - Progress callback failed at step 199: run_training.<locals>.progress_callback() got an unexpected keyword argument 'max_steps'
-2026-03-16 19:02:21,509 - INFO - Progress callback failed at step 299: run_training.<locals>.progress_callback() got an unexpected keyword argument 'max_steps'
-2026-03-16 19:02:21,509 - INFO - Step:  299 {'mem': 0.20635509490966797, 'ellipse_time': 7.114763498306274, 'num_GS': 1177}
-2026-03-16 19:02:21,509 - INFO - Running evaluation...
-2026-03-16 19:02:21,509 - INFO - PSNR: 13.161, SSIM: 0.4774, LPIPS: 0.843 Time: 0.005s/image Number of GS: 1177
-2026-03-16 19:02:22,422 - INFO - Local worker finished with status completed for project 1fba6739-87c3-4639-b637-0c93ac588ba6
+[234C:F130][2026-03-19T13:57:11]i001: Burn x86 v6.0.2, Windows v10.0 x64 (Build 26200: Service Pack 0), path: C:\Users\Geo Station\Downloads\Bimba3d\Bimba3D-Setup.exe
+[234C:F130][2026-03-19T13:57:11]i000: Initializing string variable 'Bimba3DInstallDir' to value '[ProgramFiles64Folder]Bimba3D'
+[234C:F130][2026-03-19T13:57:11]i000: Initializing string variable 'LogRoot' to value '[ProgramDataFolder]Bimba3D\\Logs'
+[234C:F130][2026-03-19T13:57:11]i000: Initializing string variable 'ColmapInstallDir' to value 'C:\\ProgramData\\Bimba3D\\third_party\\colmap'
+[234C:F130][2026-03-19T13:57:11]i000: Initializing string variable 'CudaInstallDir' to value 'C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.5'
+[234C:F130][2026-03-19T13:57:11]i000: Initializing string variable 'PythonInstallDir' to value 'C:\\Program Files\\Python312'
+[234C:F130][2026-03-19T13:57:11]i000: Initializing string variable 'ColmapVersion' to value '4.0.1'
+[234C:F130][2026-03-19T13:57:11]i009: Command Line: ''
+[234C:F130][2026-03-19T13:57:11]i000: Setting string variable 'WixBundleSourceProcessPath' to value 'C:\Users\Geo Station\Downloads\Bimba3d\Bimba3D-Setup.exe'
+[234C:F130][2026-03-19T13:57:11]i000: Setting string variable 'WixBundleSourceProcessFolder' to value 'C:\Users\Geo Station\Downloads\Bimba3d\'
+[234C:F130][2026-03-19T13:57:11]i000: Setting string variable 'WixBundleOriginalSource' to value 'C:\Users\Geo Station\Downloads\Bimba3d\Bimba3D-Setup.exe'
+[234C:F130][2026-03-19T13:57:11]i000: Setting string variable 'WixBundleOriginalSourceFolder' to value 'C:\Users\Geo Station\Downloads\Bimba3d\'
+[234C:F130][2026-03-19T13:57:11]i000: Setting string variable 'WixBundleLog' to value 'C:\Users\GEOSTA~1\AppData\Local\Temp\Bimba3D_20260319135711.log'
+[234C:F130][2026-03-19T13:57:11]i000: Setting string variable 'WixBundleInProgressName' to value ''
+[234C:F130][2026-03-19T13:57:11]i000: Setting string variable 'WixBundleName' to value 'Bimba3D'
+[234C:F130][2026-03-19T13:57:11]i000: Setting string variable 'WixBundleManufacturer' to value 'Bimba3D'
+[234C:F94C][2026-03-19T13:57:11]i000: Setting version variable 'WixBundleFileVersion' to value '6.0.2.0'
+[234C:F94C][2026-03-19T13:57:11]i000: Setting numeric variable 'WixStdBALanguageId' to value 1033
+[234C:F130][2026-03-19T13:57:12]i100: Detect begin, 9 packages
+[234C:F130][2026-03-19T13:57:12]i000: Registry key not found. Key = 'SOFTWARE\Microsoft\VisualStudio\Setup\Instances\BuildTools_17'
+[234C:F130][2026-03-19T13:57:12]i000: File search: SearchColmapBat, did not find path: [ColmapInstallDir]\COLMAP.bat
+[234C:F130][2026-03-19T13:57:12]i000: Setting numeric variable 'COLMAP_BAT_EXISTS' to value 0
+[234C:F130][2026-03-19T13:57:12]i000: File search: SearchCudaNvcc, did not find path: [CudaInstallDir]\bin\nvcc.exe
+[234C:F130][2026-03-19T13:57:12]i000: Setting numeric variable 'CUDA_NVCC_PATH' to value 0
+[234C:F130][2026-03-19T13:57:12]i000: Registry key not found. Key = 'SOFTWARE\NVIDIA Corporation\GPU Computing Toolkit\CUDA\v12.0'
+[234C:F130][2026-03-19T13:57:12]i000: Registry key not found. Key = 'SOFTWARE\NVIDIA Corporation\GPU Computing Toolkit\CUDA\v12.1'
+[234C:F130][2026-03-19T13:57:12]i000: Registry key not found. Key = 'SOFTWARE\NVIDIA Corporation\GPU Computing Toolkit\CUDA\v12.2'
+[234C:F130][2026-03-19T13:57:12]i000: Registry key not found. Key = 'SOFTWARE\NVIDIA Corporation\GPU Computing Toolkit\CUDA\v12.3'
+[234C:F130][2026-03-19T13:57:12]i000: Registry key not found. Key = 'SOFTWARE\NVIDIA Corporation\GPU Computing Toolkit\CUDA\v12.4'
+[234C:F130][2026-03-19T13:57:12]i000: Registry key not found. Key = 'SOFTWARE\NVIDIA Corporation\GPU Computing Toolkit\CUDA\v12.5'
+[234C:F130][2026-03-19T13:57:12]i000: Registry key not found. Key = 'SOFTWARE\NVIDIA Corporation\GPU Computing Toolkit\CUDA\v12.6'
+[234C:F130][2026-03-19T13:57:12]i000: Registry key not found. Key = 'SOFTWARE\NVIDIA Corporation\GPU Computing Toolkit\CUDA\v12.7'
+[234C:F130][2026-03-19T13:57:12]i000: Registry key not found. Key = 'SOFTWARE\NVIDIA Corporation\GPU Computing Toolkit\CUDA\v12.8'
+[234C:F130][2026-03-19T13:57:12]i000: Setting numeric variable 'PYTHON_X64_EXISTS' to value 1
+[234C:F130][2026-03-19T13:57:12]i000: Setting string variable 'VCREDIST_X64_INSTALLED' to value '1'
+[234C:F130][2026-03-19T13:57:12]i000: Registry key not found. Key = 'SOFTWARE\Microsoft\VisualStudio\SxS\VS7'
+[234C:F130][2026-03-19T13:57:12]i052: Condition '(VSBT_17_PATH OR VS2022_SXS_PATH) AND (CUDA_NVCC_PATH OR CUDA_V128_DIR OR CUDA_V127_DIR OR CUDA_V126_DIR OR CUDA_V125_DIR OR CUDA_V124_DIR OR CUDA_V123_DIR OR CUDA_V122_DIR OR CUDA_V121_DIR OR CUDA_V120_DIR)' evaluates to false.
+[234C:F130][2026-03-19T13:57:12]i052: Condition 'PYTHON_X64_EXISTS' evaluates to true.
+[234C:F130][2026-03-19T13:57:12]i052: Condition 'VCREDIST_X64_INSTALLED = 1' evaluates to true.
+[234C:F130][2026-03-19T13:57:12]i052: Condition 'COLMAP_BAT_EXISTS' evaluates to false.
+[234C:F130][2026-03-19T13:57:12]i101: Detected package: Bimba3DPrereqCheck, state: Absent, cached: No, install registration state: (permanent), cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:12]i101: Detected package: Python312X64, state: Present, cached: No, install registration state: (permanent), cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:12]i101: Detected package: VcRedistX64, state: Present, cached: No, install registration state: (permanent), cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:12]i101: Detected package: ColmapInstall, state: Absent, cached: No, install registration state: (permanent), cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:12]i101: Detected package: Bimba3DApp, state: Absent, cached: No, install registration state: Absent, cache registration state: Absent
+[234C:F130][2026-03-19T13:57:12]i101: Detected package: Bimba3DRuntimePrepare, state: Absent, cached: No, install registration state: (permanent), cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:12]i101: Detected package: Bimba3DRuntimeTorch, state: Absent, cached: No, install registration state: (permanent), cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:12]i101: Detected package: Bimba3DRuntimeGsplat, state: Absent, cached: No, install registration state: (permanent), cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:12]i101: Detected package: Bimba3DRuntimeRequirements, state: Absent, cached: No, install registration state: (permanent), cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:12]i199: Detect complete, result: 0x0, registration state: None, cached: No, eligible for cleanup: No
+[234C:F94C][2026-03-19T13:57:12]i052: Condition 'WixStdBASuppressOptionsUI' evaluates to false.
+[234C:F94C][2026-03-19T13:57:12]i052: Condition 'NOT WixStdBASuppressOptionsUI' evaluates to true.
+[234C:F94C][2026-03-19T13:57:12]i052: Condition 'WixStdBAShowVersion' evaluates to false.
+[234C:F94C][2026-03-19T13:57:12]i052: Condition 'WixStdBAUpdateAvailable' evaluates to false.
+[234C:F94C][2026-03-19T13:57:12]i052: Condition 'NOT WixStdBASuppressOptionsUI' evaluates to true.
+[234C:F130][2026-03-19T13:57:15]i200: Plan begin, 9 packages, action: Install
+[234C:F130][2026-03-19T13:57:15]i052: Condition 'VersionNT64 AND NOT WixBundleInstalled' evaluates to true.
+[234C:F130][2026-03-19T13:57:15]i052: Condition 'VersionNT64' evaluates to true.
+[234C:F130][2026-03-19T13:57:15]i052: Condition 'VersionNT64 AND NOT WixBundleInstalled' evaluates to true.
+[234C:F130][2026-03-19T13:57:15]i052: Condition 'VersionNT64 AND NOT WixBundleInstalled' evaluates to true.
+[234C:F130][2026-03-19T13:57:15]i052: Condition 'VersionNT64 AND NOT WixBundleInstalled' evaluates to true.
+[234C:F130][2026-03-19T13:57:15]i052: Condition 'VersionNT64 AND NOT WixBundleInstalled' evaluates to true.
+[234C:F130][2026-03-19T13:57:15]w321: Skipping dependency registration on package with no dependency providers: Bimba3DPrereqCheck
+[234C:F130][2026-03-19T13:57:15]i000: Setting string variable 'WixBundleLog_Bimba3DPrereqCheck' to value 'C:\Users\GEOSTA~1\AppData\Local\Temp\Bimba3D_20260319135711_000_Bimba3DPrereqCheck.log'
+[234C:F130][2026-03-19T13:57:15]w321: Skipping dependency registration on package with no dependency providers: Python312X64
+[234C:F130][2026-03-19T13:57:15]w321: Skipping dependency registration on package with no dependency providers: VcRedistX64
+[234C:F130][2026-03-19T13:57:15]w321: Skipping dependency registration on package with no dependency providers: ColmapInstall
+[234C:F130][2026-03-19T13:57:15]i000: Setting string variable 'WixBundleLog_ColmapInstall' to value 'C:\Users\GEOSTA~1\AppData\Local\Temp\Bimba3D_20260319135711_001_ColmapInstall.log'
+[234C:F130][2026-03-19T13:57:15]i000: Setting string variable 'WixBundleRollbackLog_Bimba3DApp' to value 'C:\Users\GEOSTA~1\AppData\Local\Temp\Bimba3D_20260319135711_002_Bimba3DApp_rollback.log'
+[234C:F130][2026-03-19T13:57:15]i000: Setting string variable 'WixBundleLog_Bimba3DApp' to value 'C:\Users\GEOSTA~1\AppData\Local\Temp\Bimba3D_20260319135711_002_Bimba3DApp.log'
+[234C:F130][2026-03-19T13:57:15]w321: Skipping dependency registration on package with no dependency providers: Bimba3DRuntimePrepare
+[234C:F130][2026-03-19T13:57:15]i000: Setting string variable 'WixBundleLog_Bimba3DRuntimePrepare' to value 'C:\Users\GEOSTA~1\AppData\Local\Temp\Bimba3D_20260319135711_003_Bimba3DRuntimePrepare.log'
+[234C:F130][2026-03-19T13:57:15]w321: Skipping dependency registration on package with no dependency providers: Bimba3DRuntimeTorch
+[234C:F130][2026-03-19T13:57:15]i000: Setting string variable 'WixBundleLog_Bimba3DRuntimeTorch' to value 'C:\Users\GEOSTA~1\AppData\Local\Temp\Bimba3D_20260319135711_004_Bimba3DRuntimeTorch.log'
+[234C:F130][2026-03-19T13:57:15]w321: Skipping dependency registration on package with no dependency providers: Bimba3DRuntimeGsplat
+[234C:F130][2026-03-19T13:57:15]i000: Setting string variable 'WixBundleLog_Bimba3DRuntimeGsplat' to value 'C:\Users\GEOSTA~1\AppData\Local\Temp\Bimba3D_20260319135711_005_Bimba3DRuntimeGsplat.log'
+[234C:F130][2026-03-19T13:57:15]w321: Skipping dependency registration on package with no dependency providers: Bimba3DRuntimeRequirements
+[234C:F130][2026-03-19T13:57:15]i000: Setting string variable 'WixBundleLog_Bimba3DRuntimeRequirements' to value 'C:\Users\GEOSTA~1\AppData\Local\Temp\Bimba3D_20260319135711_006_Bimba3DRuntimeRequirements.log'
+[234C:F130][2026-03-19T13:57:15]i222: Planned rollback boundary: 'WixDefaultBoundary', vital: Yes, transaction: No (default: No)
+[234C:F130][2026-03-19T13:57:15]i201: Planned package: Bimba3DPrereqCheck, state: Absent, default requested: Present, ba requested: Present, execute: Install, rollback: None, default cache strategy: Keep, ba requested strategy: Keep, cache: Vital, uncache: No, dependency: None, expected install registration state: (permanent), expected cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:15]i201: Planned package: Python312X64, state: Present, default requested: Present, ba requested: Present, execute: None, rollback: None, default cache strategy: Keep, ba requested strategy: Keep, cache: Vital, uncache: No, dependency: None, expected install registration state: (permanent), expected cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:15]i201: Planned package: VcRedistX64, state: Present, default requested: Present, ba requested: Present, execute: None, rollback: None, default cache strategy: Keep, ba requested strategy: Keep, cache: Vital, uncache: No, dependency: None, expected install registration state: (permanent), expected cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:15]i201: Planned package: ColmapInstall, state: Absent, default requested: Present, ba requested: Present, execute: Install, rollback: None, default cache strategy: Keep, ba requested strategy: Keep, cache: Vital, uncache: No, dependency: None, expected install registration state: (permanent), expected cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:15]i201: Planned package: Bimba3DApp, state: Absent, default requested: Present, ba requested: Present, execute: Install, rollback: Uninstall, default cache strategy: Keep, ba requested strategy: Keep, cache: Vital, uncache: No, dependency: Register, expected install registration state: Present, expected cache registration state: Present
+[234C:F130][2026-03-19T13:57:15]i201: Planned package: Bimba3DRuntimePrepare, state: Absent, default requested: Present, ba requested: Present, execute: Install, rollback: None, default cache strategy: Keep, ba requested strategy: Keep, cache: Vital, uncache: No, dependency: None, expected install registration state: (permanent), expected cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:15]i201: Planned package: Bimba3DRuntimeTorch, state: Absent, default requested: Present, ba requested: Present, execute: Install, rollback: None, default cache strategy: Keep, ba requested strategy: Keep, cache: Vital, uncache: No, dependency: None, expected install registration state: (permanent), expected cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:15]i201: Planned package: Bimba3DRuntimeGsplat, state: Absent, default requested: Present, ba requested: Present, execute: Install, rollback: None, default cache strategy: Keep, ba requested strategy: Keep, cache: Vital, uncache: No, dependency: None, expected install registration state: (permanent), expected cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:15]i201: Planned package: Bimba3DRuntimeRequirements, state: Absent, default requested: Present, ba requested: Present, execute: Install, rollback: None, default cache strategy: Keep, ba requested strategy: Keep, cache: Vital, uncache: No, dependency: None, expected install registration state: (permanent), expected cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:15]i299: Plan complete, result: 0x0
+[234C:F130][2026-03-19T13:57:15]i300: Apply begin
+[234C:F130][2026-03-19T13:57:15]i010: Launching elevated engine process.
+[234C:F130][2026-03-19T13:57:20]i011: Launched elevated engine process.
+[234C:F130][2026-03-19T13:57:20]i012: Connected to elevated engine.
+[7B80:B508][2026-03-19T13:57:20]i358: Pausing automatic updates.
+[7B80:B508][2026-03-19T13:57:20]i359: Paused automatic updates.
+[7B80:B508][2026-03-19T13:57:20]i360: Creating a system restore point.
+[7B80:B508][2026-03-19T13:57:20]i361: Created a system restore point.
+[7B80:B508][2026-03-19T13:57:20]i370: Session begin, registration key: SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{505C2173-C8A3-45CA-9BDB-D035F60407A1}, scope: PerMachine, options: 0x3, disable resume: No
+[7B80:B508][2026-03-19T13:57:20]i000: Caching bundle from: 'C:\Users\GEOSTA~1\AppData\Local\Temp\{35C33E18-5CDB-4211-802E-646EC4B500B5}\.be\Bimba3D-Setup.exe' to: 'C:\ProgramData\Package Cache\{505C2173-C8A3-45CA-9BDB-D035F60407A1}\Bimba3D-Setup.exe'
+[7B80:B508][2026-03-19T13:57:20]i320: Registering bundle dependency provider: {505C2173-C8A3-45CA-9BDB-D035F60407A1}, version: 1.0.0.0
+[7B80:B508][2026-03-19T13:57:20]i371: Updating session, registration key: SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{505C2173-C8A3-45CA-9BDB-D035F60407A1}, scope: PerMachine, resume: Active, restart initiated: No, disable resume: No
+[7B80:8440][2026-03-19T13:57:22]i305: Verified acquired payload: Bimba3DPrereqCheck at path: C:\ProgramData\Package Cache\.unverified\Bimba3DPrereqCheck, moving to: C:\ProgramData\Package Cache\Bimba3DPrereqCheck\run-prereq-check.cmd.
+[7B80:8440][2026-03-19T13:57:22]i305: Verified acquired payload: payE73CLU75kXE9WO5weCXkQakNzjI at path: C:\ProgramData\Package Cache\.unverified\payE73CLU75kXE9WO5weCXkQakNzjI, moving to: C:\ProgramData\Package Cache\Bimba3DPrereqCheck\compatibility-matrix-prereq.json.
+[7B80:8440][2026-03-19T13:57:22]i305: Verified acquired payload: payY5ULNniLv9cWRST0oSVFqOaAhSs at path: C:\ProgramData\Package Cache\.unverified\payY5ULNniLv9cWRST0oSVFqOaAhSs, moving to: C:\ProgramData\Package Cache\Bimba3DPrereqCheck\compatibility-resolver-prereq.ps1.
+[7B80:8440][2026-03-19T13:57:22]i305: Verified acquired payload: paykZyrNBH9pSSMNEJb0xfvgzX7ys4 at path: C:\ProgramData\Package Cache\.unverified\paykZyrNBH9pSSMNEJb0xfvgzX7ys4, moving to: C:\ProgramData\Package Cache\Bimba3DPrereqCheck\prereq-check.ps1.
+[7B80:8440][2026-03-19T13:57:22]i305: Verified acquired payload: Python312X64 at path: C:\ProgramData\Package Cache\.unverified\Python312X64, moving to: C:\ProgramData\Package Cache\0F623C9AB52D050283E97A986BA626D86B04CD02FA7FFDF352740576940B142B\python-3.12.8-amd64.exe.
+[7B80:8440][2026-03-19T13:57:22]i305: Verified acquired payload: VcRedistX64 at path: C:\ProgramData\Package Cache\.unverified\VcRedistX64, moving to: C:\ProgramData\Package Cache\B618F601A1989A696C8EFA0208EFD977A3BFE9A8DF8ACE8FAE9EEF20262240E7\vc_redist.x64.exe.
+[7B80:8440][2026-03-19T13:57:22]i305: Verified acquired payload: ColmapInstall at path: C:\ProgramData\Package Cache\.unverified\ColmapInstall, moving to: C:\ProgramData\Package Cache\A1815939BD974EC976302504A98C1252F58383CBDF679AECED020A94AC8AE78F\install-colmap.cmd.
+[7B80:8440][2026-03-19T13:57:22]i305: Verified acquired payload: pay2LzhUFUfK4VMYUXraMGH9fF9tSQ at path: C:\ProgramData\Package Cache\.unverified\pay2LzhUFUfK4VMYUXraMGH9fF9tSQ, moving to: C:\ProgramData\Package Cache\A1815939BD974EC976302504A98C1252F58383CBDF679AECED020A94AC8AE78F\install-colmap.ps1.
+[7B80:8440][2026-03-19T13:57:22]i305: Verified acquired payload: paySlCZDdq.NhMV_bT8NsqvxyiqJwk at path: C:\ProgramData\Package Cache\.unverified\paySlCZDdq.NhMV_bT8NsqvxyiqJwk, moving to: C:\ProgramData\Package Cache\A1815939BD974EC976302504A98C1252F58383CBDF679AECED020A94AC8AE78F\colmap-x64-windows-nocuda.zip.
+[7B80:8440][2026-03-19T13:57:24]i305: Verified acquired payload: payTN0EcXw6nK4lsppTP27TyaRwrO0 at path: C:\ProgramData\Package Cache\.unverified\payTN0EcXw6nK4lsppTP27TyaRwrO0, moving to: C:\ProgramData\Package Cache\A1815939BD974EC976302504A98C1252F58383CBDF679AECED020A94AC8AE78F\colmap-x64-windows-cuda.zip.
+[7B80:8440][2026-03-19T13:57:24]i305: Verified acquired payload: payV4JbrHxrnpI1Qd0EGTvJG2xD92I at path: C:\ProgramData\Package Cache\.unverified\payV4JbrHxrnpI1Qd0EGTvJG2xD92I, moving to: C:\ProgramData\Package Cache\A1815939BD974EC976302504A98C1252F58383CBDF679AECED020A94AC8AE78F\compatibility-resolver-colmap.ps1.
+[7B80:8440][2026-03-19T13:57:24]i305: Verified acquired payload: paypfl8Rh7owyDRofEG7s10g3dFE5I at path: C:\ProgramData\Package Cache\.unverified\paypfl8Rh7owyDRofEG7s10g3dFE5I, moving to: C:\ProgramData\Package Cache\A1815939BD974EC976302504A98C1252F58383CBDF679AECED020A94AC8AE78F\compatibility-matrix-colmap.json.
+[7B80:8440][2026-03-19T13:57:24]i305: Verified acquired payload: Bimba3DApp at path: C:\ProgramData\Package Cache\.unverified\Bimba3DApp, moving to: C:\ProgramData\Package Cache\{64BBBD77-06D9-4977-A345-93FA3BDA5498}v1.0.1.0\Bimba3D.msi.
+[7B80:8440][2026-03-19T13:57:24]i305: Verified acquired payload: Bimba3DRuntimePrepare at path: C:\ProgramData\Package Cache\.unverified\Bimba3DRuntimePrepare, moving to: C:\ProgramData\Package Cache\Bimba3DRuntimePrepare\run-runtime-bootstrap-prepare.cmd.
+[7B80:8440][2026-03-19T13:57:24]i305: Verified acquired payload: pay4o2qlYJS2pVuwCRqnO4JnNtgvfg at path: C:\ProgramData\Package Cache\.unverified\pay4o2qlYJS2pVuwCRqnO4JnNtgvfg, moving to: C:\ProgramData\Package Cache\Bimba3DRuntimePrepare\compatibility-matrix-runtime.json.
+[7B80:8440][2026-03-19T13:57:24]i305: Verified acquired payload: payFikuA2dgD9N5mHbx_LthoMtuYlM at path: C:\ProgramData\Package Cache\.unverified\payFikuA2dgD9N5mHbx_LthoMtuYlM, moving to: C:\ProgramData\Package Cache\Bimba3DRuntimePrepare\compatibility-resolver-runtime.ps1.
+[7B80:8440][2026-03-19T13:57:24]i305: Verified acquired payload: payi8i6nEgYmKhGpzdvl6fLdFR7CO0 at path: C:\ProgramData\Package Cache\.unverified\payi8i6nEgYmKhGpzdvl6fLdFR7CO0, moving to: C:\ProgramData\Package Cache\Bimba3DRuntimePrepare\runtime-bootstrap.ps1.
+[7B80:8440][2026-03-19T13:57:24]i305: Verified acquired payload: Bimba3DRuntimeTorch at path: C:\ProgramData\Package Cache\.unverified\Bimba3DRuntimeTorch, moving to: C:\ProgramData\Package Cache\Bimba3DRuntimeTorch\run-runtime-bootstrap-torch.cmd.
+[7B80:8440][2026-03-19T13:57:24]i305: Verified acquired payload: Bimba3DRuntimeGsplat at path: C:\ProgramData\Package Cache\.unverified\Bimba3DRuntimeGsplat, moving to: C:\ProgramData\Package Cache\Bimba3DRuntimeGsplat\run-runtime-bootstrap-gsplat.cmd.
+[7B80:8440][2026-03-19T13:57:24]i305: Verified acquired payload: Bimba3DRuntimeRequirements at path: C:\ProgramData\Package Cache\.unverified\Bimba3DRuntimeRequirements, moving to: C:\ProgramData\Package Cache\Bimba3DRuntimeRequirements\run-runtime-bootstrap-requirements.cmd.
+[7B80:B508][2026-03-19T13:57:24]i301: Applying execute package: Bimba3DPrereqCheck, action: Install, path: C:\ProgramData\Package Cache\Bimba3DPrereqCheck\run-prereq-check.cmd, arguments: '"C:\ProgramData\Package Cache\Bimba3DPrereqCheck\run-prereq-check.cmd"'
+[7B80:B508][2026-03-19T13:57:26]i366: The process for package: Bimba3DPrereqCheck exited with code: 0x0. The exit code has been translated to type: Success and restart: None.
+[234C:F130][2026-03-19T13:57:26]i319: Applied execute package: Bimba3DPrereqCheck, result: 0x0, restart: None
+[7B80:B508][2026-03-19T13:57:26]i301: Applying execute package: ColmapInstall, action: Install, path: C:\ProgramData\Package Cache\A1815939BD974EC976302504A98C1252F58383CBDF679AECED020A94AC8AE78F\install-colmap.cmd, arguments: '"C:\ProgramData\Package Cache\A1815939BD974EC976302504A98C1252F58383CBDF679AECED020A94AC8AE78F\install-colmap.cmd" "C:\\ProgramData\\Bimba3D\\third_party\\colmap" "C:\ProgramData\Package Cache\A1815939BD974EC976302504A98C1252F58383CBDF679AECED020A94AC8AE78F\colmap-x64-windows-cuda.zip" "C:\ProgramData\Package Cache\A1815939BD974EC976302504A98C1252F58383CBDF679AECED020A94AC8AE78F\colmap-x64-windows-nocuda.zip" "C:\Users\GEOSTA~1\AppData\Local\Temp\Bimba3D_20260319135711_001_ColmapInstall.log"'
+[7B80:B508][2026-03-19T13:57:26]i366: The process for package: ColmapInstall exited with code: 0x1. The exit code has been translated to type: Error and restart: None.
+[7B80:B508][2026-03-19T13:57:26]e000: Error 0x80070001: Process returned error: 0x1
+[7B80:B508][2026-03-19T13:57:26]e000: Error 0x80070001: Failed to execute EXE package.
+[234C:F130][2026-03-19T13:57:26]e000: Error 0x80070001: Failed to configure per-machine EXE package.
+[234C:F130][2026-03-19T13:57:26]i319: Applied execute package: ColmapInstall, result: 0x80070001, restart: None
+[234C:F130][2026-03-19T13:57:26]e000: Error 0x80070001: Failed to execute EXE package.
+[7B80:B508][2026-03-19T13:57:26]i351: Removing cached package: ColmapInstall, from path: C:\ProgramData\Package Cache\A1815939BD974EC976302504A98C1252F58383CBDF679AECED020A94AC8AE78F\
+[7B80:B508][2026-03-19T13:57:26]i351: Removing cached package: VcRedistX64, from path: C:\ProgramData\Package Cache\B618F601A1989A696C8EFA0208EFD977A3BFE9A8DF8ACE8FAE9EEF20262240E7\
+[7B80:B508][2026-03-19T13:57:26]i351: Removing cached package: Python312X64, from path: C:\ProgramData\Package Cache\0F623C9AB52D050283E97A986BA626D86B04CD02FA7FFDF352740576940B142B\
+[7B80:B508][2026-03-19T13:57:26]i351: Removing cached package: Bimba3DPrereqCheck, from path: C:\ProgramData\Package Cache\Bimba3DPrereqCheck\
+[7B80:8440][2026-03-19T13:57:26]i351: Removing cached package: Bimba3DRuntimeRequirements, from path: C:\ProgramData\Package Cache\Bimba3DRuntimeRequirements\
+[7B80:8440][2026-03-19T13:57:26]i351: Removing cached package: Bimba3DRuntimeGsplat, from path: C:\ProgramData\Package Cache\Bimba3DRuntimeGsplat\
+[7B80:8440][2026-03-19T13:57:26]i351: Removing cached package: Bimba3DRuntimeTorch, from path: C:\ProgramData\Package Cache\Bimba3DRuntimeTorch\
+[7B80:8440][2026-03-19T13:57:26]i351: Removing cached package: Bimba3DRuntimePrepare, from path: C:\ProgramData\Package Cache\Bimba3DRuntimePrepare\
+[7B80:8440][2026-03-19T13:57:26]i351: Removing cached package: Bimba3DApp, from path: C:\ProgramData\Package Cache\{64BBBD77-06D9-4977-A345-93FA3BDA5498}v1.0.1.0\
+[234C:F130][2026-03-19T13:57:26]i373: Calculating whether to keep registration
+[234C:F130][2026-03-19T13:57:26]i374:   package: Bimba3DPrereqCheck, install registration state: (permanent), cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:26]i374:   package: Python312X64, install registration state: (permanent), cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:26]i374:   package: VcRedistX64, install registration state: (permanent), cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:26]i374:   package: ColmapInstall, install registration state: (permanent), cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:26]i374:   package: Bimba3DApp, install registration state: Absent, cache registration state: Absent
+[234C:F130][2026-03-19T13:57:26]i374:   package: Bimba3DRuntimePrepare, install registration state: (permanent), cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:26]i374:   package: Bimba3DRuntimeTorch, install registration state: (permanent), cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:26]i374:   package: Bimba3DRuntimeGsplat, install registration state: (permanent), cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:26]i374:   package: Bimba3DRuntimeRequirements, install registration state: (permanent), cache registration state: (permanent)
+[234C:F130][2026-03-19T13:57:26]i372: Session end, registration key: SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{505C2173-C8A3-45CA-9BDB-D035F60407A1}, scope: PerMachine, resume: None, restart: None, disable resume: No, default registration: None, ba requested registration: None
+[7B80:B508][2026-03-19T13:57:26]i330: Removed bundle dependency provider: {505C2173-C8A3-45CA-9BDB-D035F60407A1}
+[7B80:B508][2026-03-19T13:57:26]i326: Removed dependency: {505C2173-C8A3-45CA-9BDB-D035F60407A1} on package provider: {64BBBD77-06D9-4977-A345-93FA3BDA5498}_v1.0.1.0, package Bimba3DApp
+[7B80:B508][2026-03-19T13:57:26]i329: Removed package dependency provider: {64BBBD77-06D9-4977-A345-93FA3BDA5498}_v1.0.1.0, package: Bimba3DApp
+[7B80:B508][2026-03-19T13:57:26]i352: Removing cached bundle: {505C2173-C8A3-45CA-9BDB-D035F60407A1}, from path: C:\ProgramData\Package Cache\{505C2173-C8A3-45CA-9BDB-D035F60407A1}\
+[7B80:B508][2026-03-19T13:57:26]i371: Updating session, registration key: SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{505C2173-C8A3-45CA-9BDB-D035F60407A1}, scope: PerMachine, resume: None, restart initiated: No, disable resume: No
+[7B80:B508][2026-03-19T13:57:26]i420: Resuming automatic updates.
+[7B80:B508][2026-03-19T13:57:26]i421: Resumed automatic updates.
+[234C:F94C][2026-03-19T13:57:26]i000: Setting string variable 'WixStdBARestartRequired' to value ''
+[234C:F130][2026-03-19T13:57:27]i399: Apply complete, result: 0x80070001, restart: None, ba requested restart:  No
+[234C:F94C][2026-03-19T13:57:27]i052: Condition 'WixBundleAction = 2' evaluates to false.
+[234C:F94C][2026-03-19T13:57:27]i052: Condition 'WixBundleAction = 3' evaluates to false.
+[234C:F94C][2026-03-19T13:57:27]i052: Condition 'WixBundleAction = 4' evaluates to false.
+[234C:F94C][2026-03-19T13:57:27]i052: Condition 'WixBundleAction = 5' evaluates to false.
+[234C:F94C][2026-03-19T13:57:27]i052: Condition 'WixBundleAction = 6' evaluates to true.
+[234C:F94C][2026-03-19T13:57:27]i052: Condition 'WixStdBARestartRequired' evaluates to false.

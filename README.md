@@ -28,16 +28,19 @@ python -m pip uninstall -y torch torchvision torchaudio gsplat
 python -m pip cache purge
 
 python -m pip install --index-url https://download.pytorch.org/whl/cu121 torch==2.5.1+cu121 torchvision==0.20.1+cu121 torchaudio==2.5.1+cu121
-python -m pip install --no-deps gsplat==1.5.3
+python -m pip install --force-reinstall ninja
+python -m pip install --force-reinstall --no-deps --no-cache-dir --no-binary=gsplat gsplat==1.5.3 --no-build-isolation -v
+python -m pip install -r bimba3d_backend\requirements.windows.txt
 ```
 
 Verify:
 
 ```powershell
-python -c "import torch, gsplat.cuda._wrapper as w; print(torch.__version__, torch.version.cuda, torch.cuda.is_available(), getattr(w,'_C',None) is not None)"
+python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available(), torch.cuda.device_count())"
+python -c "import gsplat.cuda._wrapper as w; w._make_lazy_cuda_obj('CameraModelType'); print('gsplat lazy CUDA ok:', True)"
 ```
 
-Expected: `2.5.1+cu121 12.1 True True` (or equivalent CUDA-enabled values).
+Expected: CUDA-enabled torch (`2.5.1+cu121`, CUDA version shown, `True`, device count >= 1) and `gsplat lazy CUDA ok: True`.
 
 Compatibility profile probe:
 - `python .\bimba3d_backend\scripts\resolve_compatibility_profile.py --matrix .\compatibility-matrix.json --format json`
@@ -118,7 +121,7 @@ $env:COLMAP_EXE = "D:\\Study\\4. Thesis\\colmap\\COLMAP-3.9.1-windows-cuda\\COLM
 
 ## Windows checklist (local mode)
 1. Install Python + Node.js.
-2. Create venv and install Python deps from `requirements.local.txt`.
+2. Create venv and install Python deps from `requirements.windows.txt` for Windows CUDA local mode.
 3. Install COLMAP natively on Windows and ensure `colmap -h` works.
 4. (Optional GPU) Install NVIDIA driver and CUDA-enabled PyTorch wheel; verify:
 	- `python -c "import torch; print(torch.cuda.is_available(), torch.version.cuda)"`

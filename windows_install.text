@@ -70,9 +70,9 @@ C:\Anaconda\python.exe -m venv .venv
 5) Upgrade tooling
 python -m pip install --upgrade pip setuptools wheel
 
-6) Install PyTorch + ninja
-pip install torch --index-url https://download.pytorch.org/whl/cu121
-pip install ninja
+6) Install pinned CUDA PyTorch stack + ninja
+pip install --index-url https://download.pytorch.org/whl/cu121 torch==2.5.1+cu121 torchvision==0.20.1+cu121 torchaudio==2.5.1+cu121
+pip install --force-reinstall ninja
 
 7) Set env vars (every new terminal session before build/install)
 set CUDA_HOME=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5
@@ -80,15 +80,15 @@ set CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5
 set DISTUTILS_USE_SDK=1
 set PATH=%CUDA_PATH%\bin;%CUDA_PATH%\libnvvp;%PATH%
 
-8) Install gsplat from source
-pip install --no-binary=gsplat gsplat --no-build-isolation -v
+8) Install gsplat from source (without changing torch deps)
+pip install --force-reinstall --no-deps --no-cache-dir --no-binary=gsplat gsplat==1.5.3 --no-build-isolation -v
 
 8.1) Install remaining backend dependencies (without reinstalling torch/gsplat)
 python -m pip install -r bimba3d_backend\requirements.windows.txt
 
 9) Verify
-python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
-python -c "import gsplat.cuda._wrapper as w; print('gsplat _C loaded:', w._C is not None)"
+python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available(), torch.cuda.device_count())"
+python -c "import gsplat.cuda._wrapper as w; w._make_lazy_cuda_obj('CameraModelType'); print('gsplat lazy CUDA ok:', True)"
 
 Quick x64 check (optional but recommended)
 where cl
