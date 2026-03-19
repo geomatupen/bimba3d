@@ -69,3 +69,4 @@ installer/wix/payloads/*.part
 /40.8.0
 /No
 windows_log_train.txt
+.local_programdata/
