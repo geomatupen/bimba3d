@@ -39,15 +39,50 @@ _UNRECOGNIZED_OPTION_RE = re.compile(r"unrecogni[sz]ed option '([^']+)'", re.IGN
 
 def _resolve_colmap_executable() -> str:
     candidate = COLMAP_EXE
-    if os.name == "nt" and candidate.lower().endswith("colmap.exe"):
-        exe_path = Path(candidate)
-        bat_candidates = [
-            exe_path.with_name("COLMAP.bat"),
-            exe_path.parent.parent / "COLMAP.bat",
+
+    if os.path.isabs(candidate) and Path(candidate).exists():
+        if os.name == "nt" and candidate.lower().endswith("colmap.exe"):
+            exe_path = Path(candidate)
+            bat_candidates = [
+                exe_path.with_name("COLMAP.bat"),
+                exe_path.parent.parent / "COLMAP.bat",
+            ]
+            for bat in bat_candidates:
+                if bat.exists():
+                    return str(bat)
+        return candidate
+
+    found = shutil.which(candidate)
+    if found:
+        if os.name == "nt" and found.lower().endswith("colmap.exe"):
+            exe_path = Path(found)
+            bat_candidates = [
+                exe_path.with_name("COLMAP.bat"),
+                exe_path.parent.parent / "COLMAP.bat",
+            ]
+            for bat in bat_candidates:
+                if bat.exists():
+                    return str(bat)
+        return found
+
+    if os.name == "nt":
+        program_data = os.environ.get("ProgramData", r"C:\ProgramData")
+        program_files = os.environ.get("ProgramFiles", r"C:\Program Files")
+        program_files_x86 = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
+
+        fallback_candidates = [
+            Path(program_data) / "Bimba3D" / "third_party" / "colmap" / "COLMAP.bat",
+            Path(program_data) / "Bimba3D" / "third_party" / "colmap" / "COLMAP.exe",
+            Path(program_files) / "Bimba3D" / "third_party" / "colmap" / "COLMAP.bat",
+            Path(program_files) / "Bimba3D" / "third_party" / "colmap" / "COLMAP.exe",
+            Path(program_files_x86) / "Bimba3D" / "third_party" / "colmap" / "COLMAP.bat",
+            Path(program_files_x86) / "Bimba3D" / "third_party" / "colmap" / "COLMAP.exe",
         ]
-        for bat in bat_candidates:
-            if bat.exists():
-                return str(bat)
+
+        for fallback in fallback_candidates:
+            if fallback.exists():
+                return str(fallback)
+
     return candidate
 
 
@@ -1317,9 +1352,13 @@ def run_colmap(image_dir: Path, output_dir: Path, params: dict | None = None) ->
     colmap_exec = _resolve_colmap_executable()
     colmap_exec_path = shutil.which(colmap_exec) if not os.path.isabs(colmap_exec) else colmap_exec
     if not colmap_exec_path:
+        fallback_hint = ""
+        if os.name == "nt":
+            fallback_hint = " Tried default path C:\\ProgramData\\Bimba3D\\third_party\\colmap\\COLMAP.bat as well."
         msg = (
             f"COLMAP executable not found: {colmap_exec}. "
             "Install COLMAP and/or set COLMAP_EXE to full path (on Windows, COLMAP.bat is recommended)."
+            + fallback_hint
         )
         logger.error(msg)
         update_status(output_dir.parent, "failed", progress=0, error=msg, stage="colmap", message=msg)
@@ -2939,6 +2978,7 @@ def _run_selected_training_engine(
 
         project_dir = Path(output_dir).parent
         root_error = str(exc) if exc else "unknown error"
+
         if os.name == "nt":
             if "WinError 193" in root_error or "not a valid Win32 application" in root_error:
                 guidance = (
