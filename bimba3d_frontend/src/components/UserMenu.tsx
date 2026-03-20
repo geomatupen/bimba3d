@@ -25,7 +25,9 @@ export default function UserMenu() {
       )}
       {open && user && (
         <div className="absolute right-0 mt-2 w-44 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-          <button className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50">Profile</button>
+          <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-100 truncate" title={user.email}>
+            {user.email}
+          </div>
           <button className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50" onClick={logout}>
             <span className="inline-flex items-center gap-2 text-rose-600">
               <LogOut className="w-4 h-4" /> Logout

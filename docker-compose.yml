@@ -15,7 +15,13 @@ services:
       - USE_DEMO_MODE=false
       - USE_DOCKER_WORKER=true
       - DATA_DIR=/app/data/projects
+      - APP_MODE=desktop
+      - DB_ENABLED=false
+      - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://postgres:postgres@host.docker.internal:5432/bimba3d}
+      - JWT_SECRET_KEY=change-me-in-production
     command: uvicorn app.main:app --host 0.0.0.0 --port 8005 --reload
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - bimba3d
     depends_on:

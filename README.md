@@ -119,6 +119,90 @@ $env:USE_DOCKER_WORKER = "false"
 $env:COLMAP_EXE = "D:\\Study\\4. Thesis\\colmap\\COLMAP-3.9.1-windows-cuda\\COLMAP.bat"
 ```
 
+## PostgreSQL modes (both supported)
+
+You can run database-backed auth/projects in two ways, both using an external/native PostgreSQL server:
+
+1) Docker backend container + external/native PostgreSQL
+- `docker-compose.yml` backend uses `DATABASE_URL` and defaults to host DB access:
+	- `postgresql+psycopg://postgres:postgres@host.docker.internal:5432/bimba3d`
+- By default, DB features remain OFF to keep current behavior:
+	- `APP_MODE=desktop`
+	- `DB_ENABLED=false`
+
+To enable DB/auth in Compose backend, set:
+- `APP_MODE=server`
+- `DB_ENABLED=true`
+- strong `JWT_SECRET_KEY`
+
+2) Local `.venv` backend + external/native PostgreSQL
+- Install/run Postgres on host OS (Ubuntu/Windows).
+- Point backend to host DB URL and enable DB mode before starting uvicorn.
+
+Recommended secure credential pattern:
+- Set `PGPASSWORD` separately and keep `DATABASE_URL` without password.
+- Avoids exposing DB password directly inside connection URL strings.
+
+Copy starter env values from `.env.server.example`.
+
+Linux/macOS example:
+```bash
+export APP_MODE=server
+export DB_ENABLED=true
+export DATABASE_URL='postgresql+psycopg://postgres@localhost:5432/bimba3d'
+export PGPASSWORD='replace-with-db-password'
+export JWT_SECRET_KEY='replace-with-strong-random-secret-at-least-32-chars'
+uvicorn bimba3d_backend.app.main:app --reload --port 8005
+```
+
+PowerShell example:
+```powershell
+$env:APP_MODE = "server"
+$env:DB_ENABLED = "true"
+$env:DATABASE_URL = "postgresql+psycopg://postgres@localhost:5432/bimba3d"
+$env:PGPASSWORD = "replace-with-db-password"
+$env:JWT_SECRET_KEY = "replace-with-strong-random-secret-at-least-32-chars"
+uvicorn bimba3d_backend.app.main:app --reload --port 8005
+```
+
+Important:
+- PostgreSQL server is NOT installed inside `.venv`.
+- `.venv` only installs Python DB client packages (`psycopg`, `sqlalchemy`, etc.).
+- This repo does not run PostgreSQL in Docker; both modes use external/native PostgreSQL.
+
+Quick startup log check:
+- Backend emits DB startup status logs with `db_startup state=`.
+- Linux/WSL example: `grep -n "db_startup state=" backend.log`
+- PowerShell example: `Select-String -Path backend.log -Pattern "db_startup state="`
+
+Google OAuth (real sign-in):
+- Set these env vars in server mode:
+	- `GOOGLE_CLIENT_ID`
+	- `GOOGLE_CLIENT_SECRET`
+	- `GOOGLE_REDIRECT_URI` (example: `http://localhost:8005/auth/google/callback`)
+- In Google Cloud Console, add the redirect URI exactly as above.
+- Frontend Login modal uses “Continue with Google” and opens Google consent popup.
+- Backend callback exchanges code, verifies Google token, and issues your app JWT tokens.
+
+Database migrations (Alembic):
+- For fresh-start environments, backend auto-creates schema on startup (`DB_AUTO_CREATE_SCHEMA=true`, default).
+- Run migrations only when upgrading an existing DB or applying versioned schema changes.
+
+Linux/WSL:
+```bash
+cd bimba3d_backend
+../.venv/bin/alembic -c alembic.ini upgrade head
+```
+
+PowerShell:
+```powershell
+cd bimba3d_backend
+..\.venv\Scripts\alembic.exe -c alembic.ini upgrade head
+```
+
+Current initial revision:
+- `20260320_000001` (users, refresh_tokens, project_records)
+
 ## Windows checklist (local mode)
 1. Install Python + Node.js.
 2. Create venv and install Python deps from `requirements.windows.txt` for Windows CUDA local mode.

@@ -12,7 +12,9 @@ from pathlib import Path
 from PIL import Image, ExifTags
 from fastapi import APIRouter, UploadFile, File, HTTPException, Body, Query
 from fastapi.responses import FileResponse
-from bimba3d_backend.app.config import DATA_DIR, ALLOWED_IMAGE_EXTENSIONS
+from fastapi import Depends
+from sqlalchemy import select
+from bimba3d_backend.app.config import DATA_DIR, ALLOWED_IMAGE_EXTENSIONS, APP_MODE, DB_ENABLED
 from bimba3d_backend.app.models.project import (
     ProjectResponse,
     StatusResponse,
@@ -28,6 +30,8 @@ from bimba3d_backend.app.models.project import (
 )
 from bimba3d_backend.app.services import status, storage, colmap, gsplat, files, sparse_edit, pointsbin
 from bimba3d_backend.app.services.worker_mode import normalize_worker_mode, resolve_worker_mode
+from bimba3d_backend.app.services.security import get_current_user_optional
+from bimba3d_backend.app.services.db import ProjectRecord, db_session
 from bimba3d_backend.worker import pipeline
 
 COLMAP_TO_OPENGL = (1.0, -1.0, -1.0)
@@ -339,7 +343,7 @@ def extract_gps(filepath: Path) -> Optional[dict]:
 
 @router.get("", response_model=list[ProjectListItem], include_in_schema=False)
 @router.get("/", response_model=list[ProjectListItem])
-def list_projects():
+def list_projects(current_user: dict | None = Depends(get_current_user_optional)):
     """List all projects with status and basic metadata."""
     try:
         projects: list[ProjectListItem] = []
@@ -365,12 +369,51 @@ def list_projects():
                 ProjectListItem(
                     project_id=project_id,
                     name=project_status.get("name"),
+                    description=project_status.get("description"),
+                    video_url=project_status.get("video_url"),
+                    category=project_status.get("category"),
                     status=current_status,
                     progress=progress,
                     created_at=project_status.get("created_at"),
                     has_outputs=has_outputs,
+                    visibility=(project_status.get("visibility") or "private"),
                 )
             )
+
+        if DB_ENABLED and APP_MODE == "server":
+            user_id = current_user.get("user_id") if current_user else None
+            user_role = current_user.get("role") if current_user else None
+            with db_session() as session:
+                visibility_map = {
+                    row.project_id: row
+                    for row in session.execute(select(ProjectRecord)).scalars().all()
+                }
+
+            filtered: list[ProjectListItem] = []
+            for item in projects:
+                record = visibility_map.get(item.project_id)
+                if record:
+                    item.visibility = record.visibility if record.visibility in {"private", "public"} else "private"
+                    if item.name is None and record.name:
+                        item.name = record.name
+                    if item.description is None and record.description:
+                        item.description = record.description
+                    if item.video_url is None and record.video_url:
+                        item.video_url = record.video_url
+                    if item.category is None and record.category:
+                        item.category = record.category
+
+                    if user_role == "admin":
+                        filtered.append(item)
+                        continue
+                    if record.visibility == "public" or (user_id and record.owner_user_id == user_id):
+                        filtered.append(item)
+                    continue
+
+                if user_role == "admin":
+                    filtered.append(item)
+
+            projects = filtered
 
         return projects
     except Exception as e:
@@ -380,7 +423,10 @@ def list_projects():
 
 @router.post("", response_model=ProjectResponse, include_in_schema=False)
 @router.post("/", response_model=ProjectResponse)
-def create_project(payload: CreateProjectRequest | None = Body(None)):
+def create_project(
+    payload: CreateProjectRequest | None = Body(None),
+    current_user: dict | None = Depends(get_current_user_optional),
+):
     """Create a new project with optional human-friendly name."""
     try:
         project_id, project_dir = storage.create_project()
@@ -388,6 +434,22 @@ def create_project(payload: CreateProjectRequest | None = Body(None)):
 
         # Initialize status file with name
         status.initialize_status(project_id, name=provided_name)
+        visibility = (payload.visibility if payload and payload.visibility else "private")
+        status.update_project_visibility(project_id, visibility)
+
+        if DB_ENABLED and APP_MODE == "server":
+            if not current_user or not current_user.get("user_id"):
+                raise HTTPException(status_code=401, detail="Authentication required")
+            owner_user_id = current_user.get("user_id")
+            with db_session() as session:
+                session.add(
+                    ProjectRecord(
+                        project_id=project_id,
+                        owner_user_id=owner_user_id,
+                        name=provided_name,
+                        visibility=visibility,
+                    )
+                )
 
         logger.info(f"Created project: {project_id} name={provided_name}")
         project_status = status.get_status(project_id)
@@ -1862,13 +1924,26 @@ def get_thumbnail(project_id: str, filename: str):
 
 
 @router.delete("/{project_id}")
-def delete_project(project_id: str):
+def delete_project(project_id: str, current_user: dict | None = Depends(get_current_user_optional)):
     """Delete a project and all associated files."""
     try:
         project_dir = DATA_DIR / project_id
 
         if not project_dir.exists():
             raise HTTPException(status_code=404, detail="Project not found")
+
+        if DB_ENABLED and APP_MODE == "server":
+            if not current_user or not current_user.get("user_id"):
+                raise HTTPException(status_code=401, detail="Authentication required")
+
+            with db_session() as session:
+                record = session.execute(
+                    select(ProjectRecord).where(ProjectRecord.project_id == project_id)
+                ).scalar_one_or_none()
+                if record and current_user.get("role") != "admin" and record.owner_user_id != current_user.get("user_id"):
+                    raise HTTPException(status_code=403, detail="Not allowed to delete this project")
+                if record:
+                    session.delete(record)
 
         shutil.rmtree(project_dir)
         logger.info(f"Deleted project: {project_id}")
@@ -1881,30 +1956,219 @@ def delete_project(project_id: str):
 
 
 @router.patch("/{project_id}")
-def update_project(project_id: str, payload: UpdateProjectRequest = Body(...)):
-    """Update project metadata (currently only name)."""
+def update_project(
+    project_id: str,
+    payload: UpdateProjectRequest = Body(...),
+    current_user: dict | None = Depends(get_current_user_optional),
+):
+    """Update project metadata (name and visibility)."""
     try:
         project_dir = DATA_DIR / project_id
         if not project_dir.exists():
             raise HTTPException(status_code=404, detail="Project not found")
 
-        if payload.name is None:
+        if (
+            payload.name is None
+            and payload.description is None
+            and payload.video_url is None
+            and payload.category is None
+            and payload.visibility is None
+        ):
             raise HTTPException(status_code=400, detail="Nothing to update")
 
-        name = payload.name.strip()
-        if not name:
-            raise HTTPException(status_code=400, detail="Name cannot be empty")
-        if len(name) > 120:
-            raise HTTPException(status_code=400, detail="Name too long (max 120 characters)")
+        response_payload: dict[str, str] = {"status": "updated", "project_id": project_id}
+        updated_name: str | None = None
+        updated_description: str | None = None
+        updated_video_url: str | None = None
+        updated_category: str | None = None
 
-        status.update_project_name(project_id, name)
-        logger.info(f"Renamed project {project_id} -> {name}")
-        return {"status": "updated", "project_id": project_id, "name": name}
+        if payload.name is not None:
+            name = payload.name.strip()
+            if not name:
+                raise HTTPException(status_code=400, detail="Name cannot be empty")
+            if len(name) > 120:
+                raise HTTPException(status_code=400, detail="Name too long (max 120 characters)")
+            updated_name = name
+            response_payload["name"] = name
+
+        if payload.description is not None:
+            description = payload.description.strip()
+            if len(description) > 1200:
+                raise HTTPException(status_code=400, detail="Description too long (max 1200 characters)")
+            updated_description = description or ""
+            response_payload["description"] = updated_description
+
+        if payload.video_url is not None:
+            video_url = payload.video_url.strip()
+            if video_url and not (video_url.startswith("http://") or video_url.startswith("https://")):
+                raise HTTPException(status_code=400, detail="Video URL must start with http:// or https://")
+            if len(video_url) > 500:
+                raise HTTPException(status_code=400, detail="Video URL too long (max 500 characters)")
+            updated_video_url = video_url or ""
+            response_payload["video_url"] = updated_video_url
+
+        if payload.category is not None:
+            category = payload.category.strip()
+            if len(category) > 120:
+                raise HTTPException(status_code=400, detail="Category too long (max 120 characters)")
+            updated_category = category or ""
+            response_payload["category"] = updated_category
+
+        if (
+            updated_name is not None
+            or updated_description is not None
+            or updated_video_url is not None
+            or updated_category is not None
+        ):
+            status.update_project_details(
+                project_id,
+                name=updated_name,
+                description=updated_description,
+                video_url=updated_video_url,
+                category=updated_category,
+            )
+
+        if payload.visibility is not None:
+            status.update_project_visibility(project_id, payload.visibility)
+            response_payload["visibility"] = payload.visibility
+
+        if DB_ENABLED and APP_MODE == "server":
+            if not current_user or not current_user.get("user_id"):
+                raise HTTPException(status_code=401, detail="Authentication required")
+
+            with db_session() as session:
+                record = session.execute(
+                    select(ProjectRecord).where(ProjectRecord.project_id == project_id)
+                ).scalar_one_or_none()
+                if record and current_user.get("role") != "admin" and record.owner_user_id != current_user.get("user_id"):
+                    raise HTTPException(status_code=403, detail="Not allowed to update this project")
+                if not record:
+                    record = ProjectRecord(
+                        project_id=project_id,
+                        owner_user_id=current_user.get("user_id"),
+                        name=updated_name,
+                        description=updated_description,
+                        video_url=updated_video_url,
+                        category=updated_category,
+                        visibility=payload.visibility or "private",
+                    )
+                    session.add(record)
+                else:
+                    if updated_name is not None:
+                        record.name = updated_name
+                    if updated_description is not None:
+                        record.description = updated_description
+                    if updated_video_url is not None:
+                        record.video_url = updated_video_url
+                    if updated_category is not None:
+                        record.category = updated_category
+                    if payload.visibility is not None:
+                        record.visibility = payload.visibility
+
+        logger.info("Updated project metadata for %s", project_id)
+        return response_payload
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error updating project {project_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to update project")
+
+
+def _build_public_project_payload(project_id: str) -> dict | None:
+    project_dir = DATA_DIR / project_id
+    if not project_dir.exists():
+        return None
+
+    project_status = status.get_status(project_id)
+    visibility = project_status.get("visibility") or "private"
+    if visibility != "public":
+        return None
+
+    name = project_status.get("name") or f"Project {project_id[:8]}"
+    description = project_status.get("description")
+    video_url = project_status.get("video_url")
+    category = project_status.get("category")
+    created_at = project_status.get("created_at")
+
+    if DB_ENABLED and APP_MODE == "server":
+        with db_session() as session:
+            record = session.execute(
+                select(ProjectRecord).where(ProjectRecord.project_id == project_id)
+            ).scalar_one_or_none()
+            if record:
+                if visibility == "private" and record.visibility == "public":
+                    visibility = "public"
+                if name is None and record.name:
+                    name = record.name
+                if description is None and record.description:
+                    description = record.description
+                if video_url is None and record.video_url:
+                    video_url = record.video_url
+                if category is None and record.category:
+                    category = record.category
+
+    if visibility != "public":
+        return None
+
+    splat_candidates = [
+        project_dir / "outputs" / "engines" / "gsplat" / "splats.splat",
+        project_dir / "outputs" / "engines" / "litegs" / "splats.splat",
+        project_dir / "outputs" / "engines" / "gsplat" / "splats.ply",
+        project_dir / "outputs" / "engines" / "litegs" / "splats.ply",
+    ]
+    if not any(path.exists() for path in splat_candidates):
+        return None
+
+    images_dir = project_dir / "images" / "thumbnails"
+    thumbnail_url = None
+    if images_dir.exists():
+        thumbs = sorted([p for p in images_dir.iterdir() if p.is_file()])
+        if thumbs:
+            thumbnail_url = f"/projects/{project_id}/thumbnail/{thumbs[0].name}"
+
+    return {
+        "project_id": project_id,
+        "name": name,
+        "description": description,
+        "video_url": video_url,
+        "category": category,
+        "created_at": created_at,
+        "visibility": "public",
+        "splat_url": f"/projects/{project_id}/download/splats",
+        "thumbnail_url": thumbnail_url,
+    }
+
+
+@router.get("/public")
+def list_public_projects(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100)):
+    projects: list[dict] = []
+    if not DATA_DIR.exists():
+        return {"items": [], "page": page, "page_size": page_size, "total": 0}
+
+    for project_dir in sorted(DATA_DIR.iterdir()):
+        if not project_dir.is_dir():
+            continue
+        payload = _build_public_project_payload(project_dir.name)
+        if payload:
+            projects.append(payload)
+
+    total = len(projects)
+    start = (page - 1) * page_size
+    end = start + page_size
+    return {
+        "items": projects[start:end],
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+    }
+
+
+@router.get("/public/{project_id}")
+def get_public_project(project_id: str):
+    payload = _build_public_project_payload(project_id)
+    if not payload:
+        raise HTTPException(status_code=404, detail="Public project not found")
+    return payload
 
 
 @router.get("/{project_id}/metrics", response_model=EvaluationMetrics)

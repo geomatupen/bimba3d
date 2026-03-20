@@ -38,6 +38,7 @@ bimba3d_frontend/*.local
 # Env files
 .env
 .env.*
+!.env.server.example
 bimba3d_backend/.env
 bimba3d_backend/.env.*
 bimba3d_frontend/.env

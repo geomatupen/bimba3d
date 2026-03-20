@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from typing import Literal
 
 
 class ProjectResponse(BaseModel):
@@ -11,18 +12,27 @@ class ProjectResponse(BaseModel):
 class ProjectListItem(BaseModel):
     project_id: str
     name: Optional[str] = None
+    description: Optional[str] = None
+    video_url: Optional[str] = None
+    category: Optional[str] = None
     status: str
     progress: int
     created_at: Optional[str] = None
     has_outputs: bool = False
+    visibility: Literal["private", "public"] = "private"
 
 
 class CreateProjectRequest(BaseModel):
     name: Optional[str] = None
+    visibility: Optional[Literal["private", "public"]] = None
 
 
 class UpdateProjectRequest(BaseModel):
     name: Optional[str] = None
+    description: Optional[str] = None
+    video_url: Optional[str] = None
+    category: Optional[str] = None
+    visibility: Optional[Literal["private", "public"]] = None
 
 
 class LastTuning(BaseModel):
@@ -37,6 +47,9 @@ class StatusResponse(BaseModel):
     progress: int  # 0-100
     error: Optional[str] = None
     name: Optional[str] = None
+    description: Optional[str] = None
+    video_url: Optional[str] = None
+    category: Optional[str] = None
     created_at: Optional[str] = None
     # NEW: Training mode and adaptive tuning info
     mode: Optional[str] = None  # "baseline" or "modified"

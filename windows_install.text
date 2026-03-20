@@ -102,12 +102,16 @@ Run backend on Windows (uvicorn)
 
 From project root:
  .venv\Scripts\activate
+set APP_MODE=server
+set DB_ENABLED=true
+set DATABASE_URL=postgresql+psycopg://postgres@localhost:5432/bimba3d
+set PGPASSWORD=replace-with-db-password
+set JWT_SECRET_KEY=replace-with-strong-random-secret-at-least-32-chars
 python -m uvicorn bimba3d_backend.app.main:app --reload --port 8005
 
-Or from backend folder:
-cd bimba3d-backend
- .venv\Scripts\activate
-python -m uvicorn app.main:app --reload --port 8005
+Notes:
+- `DB_AUTO_CREATE_SCHEMA` defaults to `true` for fresh-start databases.
+- If you want strict migration-only behavior, set `DB_AUTO_CREATE_SCHEMA=false`.
 
 Open in browser:
 http://127.0.0.1:8005/docs

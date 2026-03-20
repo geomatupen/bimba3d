@@ -23,10 +23,14 @@ import UserMenu from "../components/UserMenu";
 interface Project {
   project_id: string;
   name: string | null;
+  description?: string | null;
+  video_url?: string | null;
+  category?: string | null;
   status: string;
   progress: number;
   created_at: string | null;
   has_outputs: boolean;
+  visibility?: "private" | "public";
 }
 
 export default function Dashboard() {
@@ -35,12 +39,17 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editVideoUrl, setEditVideoUrl] = useState("");
+  const [editCategory, setEditCategory] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const navigate = useNavigate();
   const [confirmProject, setConfirmProject] = useState<Project | null>(null);
+  const [visibilityConfirm, setVisibilityConfirm] = useState<{ project: Project; nextVisibility: "private" | "public" } | null>(null);
+  const [visibilitySavingId, setVisibilitySavingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
@@ -97,12 +106,18 @@ export default function Dashboard() {
   const openEdit = (project: Project) => {
     setEditingProject(project);
     setEditName(project.name || "");
+    setEditDescription(project.description || "");
+    setEditVideoUrl(project.video_url || "");
+    setEditCategory(project.category || "");
     setEditError(null);
   };
 
   const closeEdit = () => {
     setEditingProject(null);
     setEditName("");
+    setEditDescription("");
+    setEditVideoUrl("");
+    setEditCategory("");
     setEditSaving(false);
     setEditError(null);
   };
@@ -114,11 +129,24 @@ export default function Dashboard() {
       setEditError("Name cannot be empty");
       return;
     }
+    const description = editDescription.trim();
+    const videoUrl = editVideoUrl.trim();
+    const category = editCategory.trim();
+
     setEditSaving(true);
     setEditError(null);
     try {
-      await api.patch(`/projects/${editingProject.project_id}`, { name: trimmed });
-      setProjects((prev) => prev.map((p) => (p.project_id === editingProject.project_id ? { ...p, name: trimmed } : p)));
+      await api.patch(`/projects/${editingProject.project_id}`, {
+        name: trimmed,
+        description,
+        video_url: videoUrl,
+        category,
+      });
+      setProjects((prev) => prev.map((p) => (
+        p.project_id === editingProject.project_id
+          ? { ...p, name: trimmed, description, video_url: videoUrl, category }
+          : p
+      )));
       closeEdit();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to update project";
@@ -146,6 +174,30 @@ export default function Dashboard() {
     } finally {
       setDeletingId(null);
       setConfirmProject(null);
+    }
+  };
+
+  const requestVisibilityChange = (project: Project, nextVisibility: "private" | "public", e?: MouseEvent) => {
+    if (e) e.stopPropagation();
+    setVisibilityConfirm({ project, nextVisibility });
+  };
+
+  const performVisibilityChange = async () => {
+    if (!visibilityConfirm) return;
+    const { project, nextVisibility } = visibilityConfirm;
+    setVisibilitySavingId(project.project_id);
+    try {
+      await api.patch(`/projects/${project.project_id}`, { visibility: nextVisibility });
+      setProjects((prev) => prev.map((p) => (
+        p.project_id === project.project_id ? { ...p, visibility: nextVisibility } : p
+      )));
+      showToast(nextVisibility === "public" ? "Project is now public" : "Project is now private", "success");
+      setVisibilityConfirm(null);
+    } catch (err) {
+      console.error("Failed to update visibility", err);
+      showToast("Failed to update visibility", "error");
+    } finally {
+      setVisibilitySavingId(null);
     }
   };
 
@@ -298,7 +350,12 @@ export default function Dashboard() {
                           <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors mb-0.5 truncate">
                             {project.name || `Project ${project.project_id.slice(0, 8)}`}
                           </h3>
-                          <p className="text-xs text-slate-500 font-mono">ID: {project.project_id.slice(0, 16)}...</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs text-slate-500 font-mono">ID: {project.project_id.slice(0, 16)}...</p>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${project.visibility === "public" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-50 text-slate-600 border-slate-200"}`}>
+                              {project.visibility === "public" ? "Public" : "Private"}
+                            </span>
+                          </div>
                         </div>
                         <div className="flex items-center gap-1">
                           <span
@@ -329,7 +386,18 @@ export default function Dashboard() {
                                     openEdit(project);
                                   }}
                                 >
-                                  Edit name
+                                  Edit details
+                                </button>
+                                <button
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMenuOpenId(null);
+                                    requestVisibilityChange(project, project.visibility === "public" ? "private" : "public");
+                                  }}
+                                  disabled={visibilitySavingId === project.project_id}
+                                >
+                                  {project.visibility === "public" ? "Make private" : "Make public"}
                                 </button>
                                 <button
                                   className="w-full text-left px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 disabled:opacity-60"
@@ -407,8 +475,8 @@ export default function Dashboard() {
           >
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-slate-900">Edit project name</h3>
-                <p className="text-sm text-slate-500">Update the display name for this project.</p>
+                <h3 className="text-lg font-semibold text-slate-900">Edit project details</h3>
+                <p className="text-sm text-slate-500">Update project metadata for public display.</p>
               </div>
               <button className="text-slate-400 hover:text-slate-600" onClick={closeEdit}>
                 <X className="w-5 h-5" />
@@ -422,6 +490,38 @@ export default function Dashboard() {
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
                 placeholder="Enter project name"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Description</label>
+              <textarea
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring focus:ring-blue-100 min-h-[92px]"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="Short description for public listing"
+                maxLength={1200}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Video URL</label>
+              <input
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring focus:ring-blue-100"
+                value={editVideoUrl}
+                onChange={(e) => setEditVideoUrl(e.target.value)}
+                placeholder="https://..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Category</label>
+              <input
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring focus:ring-blue-100"
+                value={editCategory}
+                onChange={(e) => setEditCategory(e.target.value)}
+                placeholder="e.g. Architecture, Product, Indoor"
+                maxLength={120}
               />
               {editError && <p className="text-sm text-rose-600">{editError}</p>}
             </div>
@@ -469,6 +569,47 @@ export default function Dashboard() {
                 disabled={deletingId === confirmProject.project_id}
               >
                 {deletingId === confirmProject.project_id ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Visibility Confirm Modal */}
+      {visibilityConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={() => setVisibilityConfirm(null)}>
+          <div
+            className="w-full max-w-md rounded-2xl bg-white shadow-2xl p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">Change project visibility?</h3>
+                <p className="text-sm text-slate-500">
+                  {visibilityConfirm.nextVisibility === "public"
+                    ? "This project will appear in public project APIs with its splat file URL."
+                    : "This project will be hidden from public project APIs."}
+                </p>
+              </div>
+              <button className="text-slate-400 hover:text-slate-600" onClick={() => setVisibilityConfirm(null)}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800" onClick={() => setVisibilityConfirm(null)}>
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 text-sm font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                onClick={performVisibilityChange}
+                disabled={visibilitySavingId === visibilityConfirm.project.project_id}
+              >
+                {visibilitySavingId === visibilityConfirm.project.project_id
+                  ? "Saving..."
+                  : visibilityConfirm.nextVisibility === "public"
+                    ? "Make Public"
+                    : "Make Private"}
               </button>
             </div>
           </div>

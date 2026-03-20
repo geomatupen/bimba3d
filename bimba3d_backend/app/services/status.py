@@ -17,6 +17,9 @@ def initialize_status(project_id: str, name: Optional[str] = None) -> None:
     status_data = {
         "project_id": project_id,
         "name": name,
+        "description": None,
+        "video_url": None,
+        "category": None,
         "status": "pending",
         "progress": 0,
         "error": None,
@@ -26,6 +29,7 @@ def initialize_status(project_id: str, name: Optional[str] = None) -> None:
         "message": None,
         "engine": None,
         "worker_mode": None,
+        "visibility": "private",
     }
     status_file.parent.mkdir(parents=True, exist_ok=True)
     
@@ -56,6 +60,9 @@ def get_status(project_id: str) -> dict:
     # Backfill optional fields for older projects
     data.setdefault("project_id", project_id)
     data.setdefault("name", None)
+    data.setdefault("description", None)
+    data.setdefault("video_url", None)
+    data.setdefault("category", None)
     data.setdefault("created_at", None)
     data.setdefault("error", None)
     data.setdefault("progress", 0)
@@ -63,6 +70,7 @@ def get_status(project_id: str) -> dict:
     data.setdefault("stage_progress", None)
     data.setdefault("engine", None)
     data.setdefault("worker_mode", None)
+    data.setdefault("visibility", "private")
     return data
 
 
@@ -73,6 +81,51 @@ def update_project_name(project_id: str, name: Optional[str]) -> None:
 
     current = get_status(project_id)
     current["name"] = name
+
+    temp_file = status_file.with_suffix('.tmp')
+    with open(temp_file, "w") as f:
+        json.dump(current, f)
+    temp_file.replace(status_file)
+
+
+def update_project_details(
+    project_id: str,
+    *,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    video_url: Optional[str] = None,
+    category: Optional[str] = None,
+) -> None:
+    """Update project details metadata fields in one atomic write."""
+    status_file = get_status_file(project_id)
+    status_file.parent.mkdir(parents=True, exist_ok=True)
+
+    current = get_status(project_id)
+    if name is not None:
+        current["name"] = name
+    if description is not None:
+        current["description"] = description
+    if video_url is not None:
+        current["video_url"] = video_url
+    if category is not None:
+        current["category"] = category
+
+    temp_file = status_file.with_suffix('.tmp')
+    with open(temp_file, "w") as f:
+        json.dump(current, f)
+    temp_file.replace(status_file)
+
+
+def update_project_visibility(project_id: str, visibility: str) -> None:
+    """Update only project visibility metadata."""
+    if visibility not in {"private", "public"}:
+        raise ValueError("Invalid visibility")
+
+    status_file = get_status_file(project_id)
+    status_file.parent.mkdir(parents=True, exist_ok=True)
+
+    current = get_status(project_id)
+    current["visibility"] = visibility
 
     temp_file = status_file.with_suffix('.tmp')
     with open(temp_file, "w") as f:

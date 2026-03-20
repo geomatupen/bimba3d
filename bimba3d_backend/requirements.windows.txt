@@ -3,6 +3,13 @@ uvicorn[standard]
 python-multipart
 pydantic
 pydantic-settings
+email-validator
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt<4
+sqlalchemy
+psycopg[binary]
+alembic
 numpy
 Pillow
 imageio
