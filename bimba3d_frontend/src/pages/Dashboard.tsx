@@ -623,6 +623,18 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      <footer className="max-w-7xl mx-auto px-6 lg:px-8 pb-8 pt-2">
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="text-slate-600 font-medium">Legal</span>
+          <Link to="/legal/terms" className="hover:text-slate-800">Terms</Link>
+          <Link to="/legal/privacy" className="hover:text-slate-800">Privacy</Link>
+          <Link to="/legal/dpa" className="hover:text-slate-800">DPA</Link>
+          <Link to="/legal/security" className="hover:text-slate-800">Security</Link>
+          <Link to="/legal/compliance" className="hover:text-slate-800">Compliance</Link>
+          <Link to="/legal/third-party-notices" className="hover:text-slate-800">Third-Party Notices</Link>
+        </div>
+      </footer>
     </div>
   );
 }
