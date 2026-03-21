@@ -2,7 +2,6 @@ import { useParams, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Images, Play, FileText, Columns2 } from "lucide-react";
 import { api } from "../api/client";
-import UserMenu from "../components/UserMenu";
 
 // Tab components
 import ImagesTab from "../components/tabs/ImagesTab";
@@ -104,7 +103,6 @@ export default function ProjectDetail() {
                   {projectStatus.status}
                 </span>
               )}
-              <UserMenu />
             </div>
           </div>
         </div>

@@ -18,7 +18,6 @@ import {
   type MouseEvent,
 } from "react";
 import { api } from "../api/client";
-import UserMenu from "../components/UserMenu";
 
 interface Project {
   project_id: string;
@@ -165,7 +164,6 @@ export default function Dashboard() {
                 Professional 3D reconstruction pipeline. Upload images, train Gaussian splats, and visualize results in real-time.
               </p>
             </div>
-            <UserMenu />
             <div className="flex items-center gap-3">
               <button
                 onClick={refreshNow}
