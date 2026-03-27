@@ -264,7 +264,10 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
   const [rightPreviewByStep, setRightPreviewByStep] = useState<Record<number, string>>({});
   const [selectedEvalStep, setSelectedEvalStep] = useState<number | null>(null);
   const [swipePercent, setSwipePercent] = useState<number>(50);
+  const [showGroundTruthCompare, setShowGroundTruthCompare] = useState<boolean>(false);
+  const [bottomSwipePercent, setBottomSwipePercent] = useState<number>(100);
   const [isSwipeDragging, setIsSwipeDragging] = useState<boolean>(false);
+  const [isSecondSwipeDragging, setIsSecondSwipeDragging] = useState<boolean>(false);
   const [showLeftSeries, setShowLeftSeries] = useState<boolean>(true);
   const [showRightSeries, setShowRightSeries] = useState<boolean>(true);
   const [showTunerChangedMarkers, setShowTunerChangedMarkers] = useState<boolean>(true);
@@ -295,6 +298,8 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
     setRightPreviewByStep({});
     setSelectedEvalStep(null);
     setSwipePercent(50);
+    setBottomSwipePercent(100);
+    setIsSecondSwipeDragging(false);
     setHoverStep(null);
   };
 
@@ -329,6 +334,8 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
     setRightPreviewByStep({});
     setSelectedEvalStep(null);
     setSwipePercent(50);
+    setBottomSwipePercent(100);
+    setIsSecondSwipeDragging(false);
     setHoverStep(null);
     let mounted = true;
     const loadSummaries = async () => {
@@ -429,6 +436,14 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
 
   const leftSelectedPreview = selectedEvalStep === null ? null : leftPreviewByStep[selectedEvalStep] || null;
   const rightSelectedPreview = selectedEvalStep === null ? null : rightPreviewByStep[selectedEvalStep] || null;
+  const fixedGroundTruthPreview = useMemo(() => {
+    const firstStep = Object.keys(leftPreviewByStep)
+      .map((k) => Number.parseInt(k, 10))
+      .filter((n) => Number.isFinite(n))
+      .sort((a, b) => a - b)[0];
+    if (typeof firstStep !== "number") return null;
+    return leftPreviewByStep[firstStep] || null;
+  }, [leftPreviewByStep]);
 
   const updateSwipeFromClientX = (clientX: number) => {
     const rect = swipeAreaRef.current?.getBoundingClientRect();
@@ -436,6 +451,16 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
     const raw = ((clientX - rect.left) / rect.width) * 100;
     const clamped = Math.max(0, Math.min(100, raw));
     setSwipePercent(clamped);
+  };
+
+  const updateSecondSwipeFromClientX = (clientX: number) => {
+    const rect = swipeAreaRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0) return;
+    const px = ((clientX - rect.left) / rect.width) * 100;
+    const x = Math.max(swipePercent, Math.min(100, px));
+    const denom = 100 - swipePercent;
+    const ratio = denom <= 1e-6 ? 1 : (x - swipePercent) / denom;
+    setBottomSwipePercent(Math.max(0, Math.min(100, ratio * 100)));
   };
 
   const options = projects.map((project) => ({
@@ -552,6 +577,7 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
   const rightTuneEndStep = typeof rightSummary?.tuning?.end_step === "number" ? rightSummary.tuning.end_step : null;
   const leftTuneEndValue = leftTuneEndStep === null ? null : nearestPointValue(leftGraphPoints, leftTuneEndStep);
   const rightTuneEndValue = rightTuneEndStep === null ? null : nearestPointValue(rightGraphPoints, rightTuneEndStep);
+  const secondSwipeXPercent = swipePercent + ((100 - swipePercent) * bottomSwipePercent) / 100;
 
   return (
     <div className="space-y-4">
@@ -977,6 +1003,15 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
                     <option key={`eval-step-${step}`} value={step}>Step {fmt(step)}</option>
                   ))}
                 </select>
+                <label className="mt-2 inline-flex items-center gap-2 text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={showGroundTruthCompare}
+                    onChange={(e) => setShowGroundTruthCompare(e.target.checked)}
+                    className="rounded border-slate-300"
+                  />
+                  Compare with ground truth (extra bottom swipe)
+                </label>
               </div>
             </div>
 
@@ -986,18 +1021,49 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
                   ref={swipeAreaRef}
                   className="relative w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 touch-none select-none"
                 >
-                  <img src={leftSelectedPreview} alt={`Left project at step ${selectedEvalStep ?? ""}`} className="block w-full h-auto" draggable={false} />
-                  <div
-                    className="absolute inset-0 overflow-hidden pointer-events-none"
-                    style={{ clipPath: `inset(0 ${100 - swipePercent}% 0 0)` }}
-                  >
-                    <div className="absolute bottom-2 left-2 px-2 py-1 rounded bg-slate-900/75 text-white text-[11px] font-semibold whitespace-nowrap">
-                      Top: {leftSummary.name || "Left"}
+                  <img
+                    src={rightSelectedPreview}
+                    alt={`Right project at step ${selectedEvalStep ?? ""}`}
+                    className={`block w-full h-auto ${showGroundTruthCompare ? "opacity-0 pointer-events-none" : ""}`}
+                    draggable={false}
+                  />
+                  {!showGroundTruthCompare && (
+                    <div className="absolute bottom-2 right-2 px-2 py-1 rounded bg-slate-900/75 text-white text-[11px] font-semibold whitespace-nowrap z-20">
+                      Right: {rightSummary.name || "Right"}
                     </div>
-                  </div>
+                  )}
+                  {showGroundTruthCompare && (
+                    <>
+                      <div className="absolute inset-0 overflow-hidden z-10">
+                        <img
+                          src={fixedGroundTruthPreview || leftSelectedPreview}
+                          alt="Ground truth base layer"
+                          className="block w-full h-full object-cover"
+                          draggable={false}
+                        />
+                        <div className="absolute bottom-2 left-2 px-2 py-1 rounded bg-slate-900/75 text-white text-[11px] font-semibold whitespace-nowrap">
+                          Ground truth
+                        </div>
+                      </div>
+                      <div
+                        className="absolute inset-0 overflow-hidden z-20"
+                        style={{ clipPath: `inset(0 ${100 - secondSwipeXPercent}% 0 0)` }}
+                      >
+                        <img
+                          src={rightSelectedPreview}
+                          alt={`Middle layer at step ${selectedEvalStep ?? ""}`}
+                          className="block w-full h-full object-cover"
+                          draggable={false}
+                        />
+                        <div className="absolute bottom-2 right-2 px-2 py-1 rounded bg-slate-900/75 text-white text-[11px] font-semibold whitespace-nowrap">
+                          Right: {rightSummary.name || "Right"}
+                        </div>
+                      </div>
+                    </>
+                  )}
                   <div
-                    className={`absolute inset-0 overflow-hidden ${isSwipeDragging ? "cursor-ew-resize" : "cursor-col-resize"}`}
-                    style={{ clipPath: `inset(0 0 0 ${swipePercent}%)` }}
+                    className={`absolute inset-0 overflow-hidden z-40 ${isSwipeDragging ? "cursor-ew-resize" : "cursor-col-resize"}`}
+                    style={{ clipPath: `inset(0 ${100 - swipePercent}% 0 0)` }}
                     onPointerDown={(e) => {
                       setIsSwipeDragging(true);
                       updateSwipeFromClientX(e.clientX);
@@ -1020,20 +1086,62 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
                       }
                     }}
                   >
-                    <img src={rightSelectedPreview} alt={`Right project at step ${selectedEvalStep ?? ""}`} className="block w-full h-auto" draggable={false} />
-                    <div className="absolute bottom-2 right-2 px-2 py-1 rounded bg-sky-950/75 text-white text-[11px] font-semibold whitespace-nowrap">
-                      Bottom: {rightSummary.name || "Right"}
+                    <img src={leftSelectedPreview} alt={`Left project at step ${selectedEvalStep ?? ""}`} className="block w-full h-auto" draggable={false} />
+                    <div className="absolute bottom-2 left-2 px-2 py-1 rounded bg-sky-950/75 text-white text-[11px] font-semibold whitespace-nowrap">
+                      Left: {leftSummary.name || "Left"}
                     </div>
                   </div>
 
                   <div
-                    className="absolute top-0 bottom-0 w-[2px] bg-white/90 shadow pointer-events-none"
+                    className="absolute top-0 bottom-0 w-[2px] bg-white/90 shadow pointer-events-none z-50"
                     style={{ left: `${swipePercent}%`, transform: "translateX(-1px)" }}
                   />
                   <div
-                    className="absolute top-1/2 w-4 h-4 rounded-full border border-white bg-sky-500 shadow pointer-events-none"
+                    className="absolute top-1/2 w-4 h-4 rounded-full border border-white bg-sky-500 shadow pointer-events-none z-50"
                     style={{ left: `${swipePercent}%`, transform: "translate(-50%, -50%)" }}
                   />
+
+                  {showGroundTruthCompare && (
+                    <>
+                      <div
+                        className={`absolute top-0 bottom-0 w-10 -ml-5 touch-none z-[55] ${isSecondSwipeDragging ? "cursor-ew-resize" : "cursor-col-resize"}`}
+                        style={{ left: `${secondSwipeXPercent}%` }}
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          setIsSecondSwipeDragging(true);
+                          updateSecondSwipeFromClientX(e.clientX);
+                          e.currentTarget.setPointerCapture(e.pointerId);
+                        }}
+                        onPointerMove={(e) => {
+                          e.stopPropagation();
+                          if (!isSecondSwipeDragging) return;
+                          updateSecondSwipeFromClientX(e.clientX);
+                        }}
+                        onPointerUp={(e) => {
+                          e.stopPropagation();
+                          setIsSecondSwipeDragging(false);
+                          if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                            e.currentTarget.releasePointerCapture(e.pointerId);
+                          }
+                        }}
+                        onPointerCancel={(e) => {
+                          e.stopPropagation();
+                          setIsSecondSwipeDragging(false);
+                          if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                            e.currentTarget.releasePointerCapture(e.pointerId);
+                          }
+                        }}
+                      />
+                      <div
+                        className="absolute top-0 bottom-0 w-[2px] bg-amber-300/95 shadow pointer-events-none z-35"
+                        style={{ left: `${secondSwipeXPercent}%`, transform: "translateX(-1px)" }}
+                      />
+                      <div
+                        className="absolute top-1/2 w-3.5 h-3.5 rounded-full border border-white bg-amber-500 shadow pointer-events-none z-35"
+                        style={{ left: `${secondSwipeXPercent}%`, transform: "translate(-50%, -50%)" }}
+                      />
+                    </>
+                  )}
 
                 </div>
 
@@ -1055,6 +1163,23 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
                     className="w-full"
                   />
                 </div>
+
+                {showGroundTruthCompare && (
+                  <div className="space-y-1 pt-2 border-t border-slate-200">
+                    <div className="flex items-center justify-between text-xs text-slate-600">
+                      <span>Swipe middle layer</span>
+                      <span>{Math.round(bottomSwipePercent)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={bottomSwipePercent}
+                      onChange={(e) => setBottomSwipePercent(Number.parseFloat(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-xs text-slate-500">Matching preview images at the same eval step are not available for both projects yet.</p>
