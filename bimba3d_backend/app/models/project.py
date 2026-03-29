@@ -103,9 +103,11 @@ class ProcessParams(BaseModel):
     pruning_enabled: Optional[bool] = None  # [custom]
     pruning_policy: Optional[str] = None  # [custom]
     pruning_weights: Optional[dict] = None  # [custom]
+    tune_start_step: Optional[int] = None  # [custom]
+    tune_min_improvement: Optional[float] = None  # [custom]
     tune_end_step: Optional[int] = None  # [custom]
     tune_interval: Optional[int] = None  # [custom]
-    tune_scope: Optional[str] = None  # [custom] "core_only" | "with_strategy"
+    tune_scope: Optional[str] = None  # [custom] "core_individual" | "core_only" | "core_individual_plus_strategy"
     images_max_size: Optional[int] = None  # [custom]
     litegs_target_primitives: Optional[int] = None  # [custom]
     litegs_alpha_shrink: Optional[float] = None  # [custom]

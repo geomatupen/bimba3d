@@ -5,6 +5,13 @@ import subprocess
 import time
 from pathlib import Path
 
+from ..modified_rule_scopes import (
+    apply_tune_scope,
+    build_rule_multiplier_summary,
+    normalize_tune_scope,
+    select_rule_profile,
+)
+
 
 def _find_vswhere_exe() -> Path | None:
     candidates = []
@@ -146,6 +153,39 @@ def run_training(
     p = params or {}
     mode = p.get("mode", "baseline")
     max_steps = int(p.get("max_steps", 30_000))
+    raw_tune_start_step = p.get("tune_start_step", 100)
+    try:
+        modified_tune_start_step = max(1, int(raw_tune_start_step))
+    except Exception:
+        modified_tune_start_step = 100
+    raw_tune_end_step = p.get("tune_end_step", 200)
+    try:
+        modified_tune_end_step = max(1, int(raw_tune_end_step))
+    except Exception:
+        modified_tune_end_step = 200
+    if modified_tune_start_step > modified_tune_end_step:
+        modified_tune_start_step = modified_tune_end_step
+    raw_tune_interval = p.get("tune_interval", 25)
+    try:
+        modified_tune_interval = max(1, int(raw_tune_interval))
+    except Exception:
+        modified_tune_interval = 25
+    raw_tune_min_improvement = p.get("tune_min_improvement", 0.005)
+    try:
+        tune_min_improvement = max(0.0, min(1.0, float(raw_tune_min_improvement)))
+    except Exception:
+        tune_min_improvement = 0.005
+    tune_scope = normalize_tune_scope(p.get("tune_scope", "with_strategy"))
+    raw_densify_start = p.get("densify_from_iter", 500)
+    raw_densify_end = p.get("densify_until_iter", 10000)
+    try:
+        strategy_tune_start_step = max(1, int(raw_densify_start))
+    except Exception:
+        strategy_tune_start_step = 500
+    try:
+        strategy_tune_end_step = max(strategy_tune_start_step, int(raw_densify_end))
+    except Exception:
+        strategy_tune_end_step = max(strategy_tune_start_step, 10000)
     splat_interval = p.get("splat_export_interval")
     try:
         splat_interval = max(1, int(splat_interval)) if splat_interval is not None else None
@@ -159,7 +199,14 @@ def run_training(
     project_dir = base_output_dir.parent
     stop_flag = project_dir / "stop_requested"
     gsplat_start = time.time()
-    tuning_state: dict[str, object] = {"applied": False, "event": None}
+    tuning_state: dict[str, object] = {
+        "updates": 0,
+        "last_event": None,
+        "events": [],
+        "last_tuned_step": None,
+        "last_checked_loss": None,
+        "phase_complete_logged": False,
+    }
     runner_ref: dict[str, object] = {"runner": None}
     last_snapshot_step: dict[str, int] = {"value": -1}
 
@@ -225,7 +272,7 @@ def run_training(
             next_save_step = next((int(s) for s in save_steps_cfg if int(s) >= int(step)), None)
 
             steps_per_second = (float(step) / elapsed_seconds) if elapsed_seconds > 0 else None
-            tuning_applied = bool(tuning_state.get("applied"))
+            tuning_applied = bool(int(tuning_state.get("updates", 0) or 0) > 0)
 
             logger.info(
                 "[GSPLAT SNAPSHOT] step=%d/%d progress=%.2f%% loss=%.6f gs=%s opacity_mean=%s scale_mean=%s sh_degree=%s next_eval=%s next_save=%s elapsed=%.1fs eta=%s speed=%s tuning_applied=%s strategy=%s lrs=%s",
@@ -249,10 +296,17 @@ def run_training(
         except Exception as exc:
             logger.debug("Failed to emit gsplat training snapshot at step %s: %s", step, exc)
 
-    def apply_modified_profile(step: int) -> bool:
-        if mode != "modified" or tuning_state.get("applied"):
+    def apply_modified_rules(step: int, loss: float) -> bool:
+        if mode != "modified":
             return False
-        if step < 200:
+        effective_tune_end = max(modified_tune_end_step, strategy_tune_end_step)
+        if step > effective_tune_end:
+            return False
+        if step < min(modified_tune_start_step, strategy_tune_start_step):
+            return False
+        if step % modified_tune_interval != 0 and step not in {modified_tune_end_step, strategy_tune_end_step}:
+            return False
+        if tuning_state.get("last_tuned_step") == step:
             return False
 
         runner_obj = runner_ref.get("runner")
@@ -260,49 +314,108 @@ def run_training(
             return False
 
         try:
-            lr_multipliers = {
-                "means": 0.85,
-                "opacities": 0.80,
-                "scales": 0.95,
-                "quats": 0.95,
-                "sh0": 1.10,
-                "shN": 1.10,
+            try:
+                loss_value = float(loss)
+            except Exception:
+                loss_value = 0.0
+
+            previous_loss = tuning_state.get("last_checked_loss")
+            tuning_state["last_checked_loss"] = float(loss_value)
+            relative_improvement = None
+            if previous_loss is not None:
+                try:
+                    denom = max(abs(float(previous_loss)), 1e-8)
+                    relative_improvement = (float(previous_loss) - float(loss_value)) / denom
+                except Exception:
+                    relative_improvement = None
+
+            if tune_scope == "core_individual":
+                if relative_improvement is None:
+                    return False
+                if float(relative_improvement) >= float(tune_min_improvement):
+                    return False
+
+            apply_lr = modified_tune_start_step <= step <= modified_tune_end_step
+            apply_strategy = strategy_tune_start_step <= step <= strategy_tune_end_step
+            if tune_scope == "core_individual":
+                apply_strategy = False
+            if not apply_lr and not apply_strategy:
+                return False
+
+            profile_data = select_rule_profile(loss_value)
+            profile = profile_data.name
+            applied_multipliers = build_rule_multiplier_summary(tune_scope, profile_data)
+            scope_multipliers = {
+                "lr": dict(profile_data.lr_multipliers),
+                "strategy": dict(profile_data.strategy_multipliers),
             }
-            before_lrs: dict[str, float] = {}
-            after_lrs: dict[str, float] = {}
-            for name, mult in lr_multipliers.items():
-                optimizer = getattr(runner_obj, "optimizers", {}).get(name)
-                if optimizer is None or not optimizer.param_groups:
+
+            scope_updates = apply_tune_scope(
+                tune_scope,
+                runner_obj,
+                profile_data,
+                apply_lr=apply_lr,
+                apply_strategy=apply_strategy,
+            )
+            before_lrs = dict(scope_updates.get("before_lrs") or {})
+            after_lrs = dict(scope_updates.get("after_lrs") or {})
+            strategy_before = dict(scope_updates.get("strategy_before") or {})
+            strategy_after = dict(scope_updates.get("strategy_after") or {})
+            adjustments = list(scope_updates.get("adjustments") or [])
+
+            lr_change_details: dict[str, dict[str, float]] = {}
+            for name, before_val in before_lrs.items():
+                after_val = after_lrs.get(name)
+                if after_val is None:
                     continue
-                current_lr = float(optimizer.param_groups[0].get("lr", 0.0))
-                before_lrs[name] = current_lr
-                new_lr = current_lr * float(mult)
-                for group in optimizer.param_groups:
-                    group["lr"] = new_lr
-                after_lrs[name] = new_lr
+                multiplier = 1.0
+                try:
+                    if float(before_val) != 0.0:
+                        multiplier = float(after_val) / float(before_val)
+                except Exception:
+                    multiplier = 1.0
+                lr_change_details[name] = {
+                    "before": float(before_val),
+                    "after": float(after_val),
+                    "multiplier": float(multiplier),
+                }
 
-            strategy = getattr(getattr(runner_obj, "cfg", None), "strategy", None)
-            strategy_before: dict[str, float] = {}
-            strategy_after: dict[str, float] = {}
-            if strategy is not None:
-                for key in ("grow_grad2d", "prune_opa", "refine_every", "reset_every"):
-                    strategy_before[key] = float(getattr(strategy, key))
+            strategy_change_details: dict[str, dict[str, float]] = {}
+            for key, before_val in strategy_before.items():
+                after_val = strategy_after.get(key)
+                if after_val is None:
+                    continue
+                strategy_change_details[key] = {
+                    "before": float(before_val),
+                    "after": float(after_val),
+                }
 
-                strategy.grow_grad2d = max(5e-5, float(strategy.grow_grad2d) * 0.85)
-                strategy.prune_opa = max(1e-4, float(strategy.prune_opa) * 0.90)
-                strategy.refine_every = max(25, int(float(strategy.refine_every) * 0.80))
-                strategy.reset_every = max(strategy.refine_every, int(float(strategy.reset_every) * 0.85))
-
-                for key in ("grow_grad2d", "prune_opa", "refine_every", "reset_every"):
-                    strategy_after[key] = float(getattr(strategy, key))
+            has_lr_updates = any(
+                abs(float(v.get("after", 0.0)) - float(v.get("before", 0.0))) > 1e-15
+                for v in lr_change_details.values()
+            )
+            has_strategy_updates = any(
+                abs(float(v.get("after", 0.0)) - float(v.get("before", 0.0))) > 1e-12
+                for v in strategy_change_details.values()
+            )
+            if not has_lr_updates and not has_strategy_updates:
+                tuning_state["last_tuned_step"] = int(step)
+                return False
 
             event = {
                 "step": int(step),
-                "adjustments": [
-                    "step200_deterministic_profile",
-                    "lr_rebalance_means_opacity_sh",
-                    "densification_threshold_and_cadence_shift",
-                ],
+                "loss": loss_value,
+                "previous_loss": float(previous_loss) if previous_loss is not None else None,
+                "relative_improvement": float(relative_improvement) if relative_improvement is not None else None,
+                "required_min_improvement": float(tune_min_improvement),
+                "apply_lr": bool(apply_lr),
+                "apply_strategy": bool(apply_strategy),
+                "profile": profile,
+                "scope": tune_scope,
+                "rule_multipliers": applied_multipliers,
+                "scope_multipliers": scope_multipliers,
+                "adjustments": adjustments,
+                "lr_changes": lr_change_details,
                 "params": {
                     "learning_rates": after_lrs,
                     "strategy": strategy_after,
@@ -312,8 +425,10 @@ def run_training(
                     "strategy": strategy_before,
                 },
             }
-            tuning_state["event"] = event
-            tuning_state["applied"] = True
+            tuning_state["last_event"] = event
+            tuning_state["events"].append(event)
+            tuning_state["updates"] = int(tuning_state.get("updates", 0) or 0) + 1
+            tuning_state["last_tuned_step"] = int(step)
 
             update_status(
                 project_dir,
@@ -322,14 +437,53 @@ def run_training(
                 tuning_active=True,
                 last_tuning={
                     "step": int(step),
-                    "action": "Step-200 profile update",
-                    "reason": "Modified mode deterministic tuning",
+                    "action": f"Rule-based {profile} update",
+                    "reason": f"Modified mode rule check (LR {modified_tune_start_step}-{modified_tune_end_step}, strategy {strategy_tune_start_step}-{strategy_tune_end_step})",
+                    "scope": tune_scope,
+                    "profile": profile,
+                    "lr_changes": lr_change_details,
+                    "adjustments": adjustments,
                 },
             )
-            logger.info("Applied modified-mode profile at step %d", step)
+            logger.info(
+                "Modified rule update applied at step %d (lr_window=%d-%d, strategy_window=%d-%d, apply_lr=%s, apply_strategy=%s, loss=%.6f, prev_loss=%s, rel_improve=%s, min_improve=%.4f, profile=%s, scope=%s)",
+                step,
+                modified_tune_start_step,
+                modified_tune_end_step,
+                strategy_tune_start_step,
+                strategy_tune_end_step,
+                str(bool(apply_lr)),
+                str(bool(apply_strategy)),
+                loss_value,
+                f"{float(previous_loss):.6f}" if previous_loss is not None else "n/a",
+                f"{float(relative_improvement):.6f}" if relative_improvement is not None else "n/a",
+                tune_min_improvement,
+                profile,
+                tune_scope,
+            )
+            logger.info(
+                "Modified rule multipliers step=%d profile=%s scope=%s lr=%s strategy=%s",
+                step,
+                profile,
+                tune_scope,
+                json.dumps(scope_multipliers.get("lr", {}), sort_keys=True),
+                json.dumps(scope_multipliers.get("strategy", {}), sort_keys=True),
+            )
+            logger.info(
+                "Modified rule details step=%d lr_changes=%s before_strategy=%s after_strategy=%s",
+                step,
+                json.dumps(lr_change_details, sort_keys=True),
+                json.dumps(strategy_before, sort_keys=True),
+                json.dumps(strategy_after, sort_keys=True),
+            )
             return True
         except Exception as exc:
-            logger.warning("Failed to apply modified-mode profile at step %d: %s", step, exc)
+            logger.warning(
+                "Failed modified-mode rule update at step %d/%d: %s",
+                step,
+                modified_tune_end_step,
+                exc,
+            )
             return False
 
     def stop_checker() -> bool:
@@ -347,7 +501,9 @@ def run_training(
                 max_steps_local = int(raw_max_steps)
             except Exception:
                 max_steps_local = int(max_steps)
-        apply_modified_profile(step)
+        if mode == "modified" and not tuning_state.get("phase_complete_logged") and step == modified_tune_end_step + 1:
+            tuning_state["phase_complete_logged"] = True
+        apply_modified_rules(step, loss)
         requested_stop = stop_checker()
         status_text = "stopping" if requested_stop else "processing"
         progress_fraction = 0.0 if max_steps_local <= 0 else float(step) / float(max_steps_local)
@@ -374,6 +530,7 @@ def run_training(
             status_text,
             progress=60 + int(progress_fraction * 35),
             mode=mode,
+            tuning_active=(mode == "modified" and step <= max(modified_tune_end_step, strategy_tune_end_step)),
             currentStep=step,
             maxSteps=max_steps_local,
             stop_requested=requested_stop,
@@ -423,7 +580,8 @@ def run_training(
         timing={"start": gsplat_start},
     )
 
-    dataset_dir = engine_output_dir
+    dataset_dir = engine_output_dir / "_runtime" / f"run_{int(gsplat_start * 1000)}"
+    dataset_dir.mkdir(parents=True, exist_ok=True)
     images_link = dataset_dir / "images"
     sparse_zero = dataset_dir / "sparse" / "0"
     sparse_zero.parent.mkdir(parents=True, exist_ok=True)
@@ -443,6 +601,14 @@ def run_training(
                 link_path,
                 resolved_target,
             )
+            try:
+                if link_path.exists() or link_path.is_symlink():
+                    if link_path.is_symlink() or link_path.is_file():
+                        link_path.unlink()
+                    else:
+                        shutil.rmtree(link_path)
+            except Exception as cleanup_exc:
+                logger.warning("Cleanup before copy fallback failed for %s: %s", link_path, cleanup_exc)
             shutil.copytree(resolved_target, link_path, dirs_exist_ok=True)
 
     for link_path, target in ((images_link, image_dir), (sparse_zero, colmap_dir)):
@@ -511,15 +677,20 @@ def run_training(
         tb_every=0,
     )
     cfg.disable_tqdm = not bool(p.get("enable_tqdm", False))
-    cfg.progress_every = max(1, int(log_interval))
+    progress_every = max(1, int(log_interval))
+    if mode == "modified":
+        progress_every = min(progress_every, max(1, int(modified_tune_interval)))
+    cfg.progress_every = progress_every
     if cfg.disable_tqdm:
         os.environ["TQDM_DISABLE"] = "1"
     else:
         os.environ.pop("TQDM_DISABLE", None)
 
     logger.info(
-        "GSPLAT logging cadence: snapshot every %d steps (config key: log_interval); tqdm=%s",
+        "GSPLAT logging cadence: snapshot every %d steps (log_interval), callback every %d steps, modified_tune_interval=%d; tqdm=%s",
         log_interval,
+        cfg.progress_every,
+        modified_tune_interval,
         "disabled" if cfg.disable_tqdm else "enabled",
     )
 
@@ -668,9 +839,9 @@ def run_training(
         for row in eval_history:
             tuning_params = row.get("tuning_params") if isinstance(row, dict) else None
             if isinstance(tuning_params, dict):
-                tuning_params["modified_profile_applied"] = bool(tuning_state.get("applied"))
-                if tuning_state.get("event"):
-                    tuning_params["modified_profile_step"] = tuning_state["event"].get("step")
+                tuning_params["modified_rule_updates"] = int(tuning_state.get("updates", 0) or 0)
+                if tuning_state.get("last_event"):
+                    tuning_params["modified_last_rule_step"] = tuning_state["last_event"].get("step")
     if eval_history:
         write_json_atomic(engine_output_dir / "eval_history.json", eval_history)
         final_eval = eval_history[-1]
@@ -683,10 +854,16 @@ def run_training(
         }
         adaptive_payload = {
             "mode": mode,
+            "tune_scope": tune_scope if mode == "modified" else None,
             "final_evaluation": final_metrics,
-            "tune_end_step": final_eval.get("step"),
-            "tuning_history": [tuning_state["event"]] if tuning_state.get("event") else [],
-            "final_params": (tuning_state.get("event") or {}).get("params", {}),
+            "tune_start_step": modified_tune_start_step if mode == "modified" else None,
+            "tune_end_step": modified_tune_end_step if mode == "modified" else final_eval.get("step"),
+            "tune_interval": modified_tune_interval if mode == "modified" else None,
+            "tune_min_improvement": tune_min_improvement if mode == "modified" else None,
+            "strategy_tune_start_step": strategy_tune_start_step if mode == "modified" else None,
+            "strategy_tune_end_step": strategy_tune_end_step if mode == "modified" else None,
+            "tuning_history": list(tuning_state.get("events") or []),
+            "final_params": (tuning_state.get("last_event") or {}).get("params", {}),
         }
         write_json_atomic(engine_output_dir / "adaptive_tuning_results.json", adaptive_payload)
 
@@ -707,6 +884,7 @@ def run_training(
         }
         metadata["num_gaussians"] = final_eval.get("num_gaussians")
         metadata["mode"] = mode
+        metadata["tune_scope"] = tune_scope if mode == "modified" else None
         write_json_atomic(metadata_path, metadata)
 
     if stop_flag.exists():

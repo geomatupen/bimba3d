@@ -24,6 +24,12 @@ import numpy as np
 from .engines import ENGINE_LABELS, SUPPORTED_ENGINES, run_selected_engine
 from .image_resize import prepare_training_images, normalize_max_size
 from .colmap_loader import COLMAPDataset, qvec2rotmat, read_images_binary, read_points3D_binary
+from .modified_rule_scopes import (
+    apply_tune_scope,
+    build_rule_multiplier_summary,
+    normalize_tune_scope,
+    select_rule_profile,
+)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -1934,18 +1940,39 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
 
     mode = p.get("mode", "baseline")
     max_steps = int(p.get("max_steps", 30_000))
+    raw_tune_start_step = p.get("tune_start_step", 100)
+    try:
+        modified_tune_start_step = max(1, int(raw_tune_start_step))
+    except Exception:
+        modified_tune_start_step = 100
     raw_tune_end_step = p.get("tune_end_step", 200)
     try:
         modified_tune_end_step = max(1, int(raw_tune_end_step))
     except Exception:
         modified_tune_end_step = 200
+    if modified_tune_start_step > modified_tune_end_step:
+        modified_tune_start_step = modified_tune_end_step
     raw_tune_interval = p.get("tune_interval", 25)
     try:
         modified_tune_interval = max(1, int(raw_tune_interval))
     except Exception:
         modified_tune_interval = 25
-    raw_tune_scope = str(p.get("tune_scope", "with_strategy") or "with_strategy").strip().lower()
-    tune_scope = raw_tune_scope if raw_tune_scope in {"core_only", "with_strategy"} else "with_strategy"
+    raw_tune_min_improvement = p.get("tune_min_improvement", 0.005)
+    try:
+        tune_min_improvement = max(0.0, min(1.0, float(raw_tune_min_improvement)))
+    except Exception:
+        tune_min_improvement = 0.005
+    tune_scope = normalize_tune_scope(p.get("tune_scope", "with_strategy"))
+    raw_densify_start = p.get("densify_from_iter", 500)
+    raw_densify_end = p.get("densify_until_iter", 10000)
+    try:
+        strategy_tune_start_step = max(1, int(raw_densify_start))
+    except Exception:
+        strategy_tune_start_step = 500
+    try:
+        strategy_tune_end_step = max(strategy_tune_start_step, int(raw_densify_end))
+    except Exception:
+        strategy_tune_end_step = max(strategy_tune_start_step, 10000)
     splat_interval = p.get("splat_export_interval")
     try:
         splat_interval = max(1, int(splat_interval)) if splat_interval is not None else None
@@ -1985,6 +2012,7 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
         "last_event": None,
         "events": [],
         "last_tuned_step": None,
+        "last_checked_loss": None,
         "phase_complete_logged": False,
     }
     runner_ref: dict[str, object] = {"runner": None}
@@ -2000,10 +2028,14 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
 
     if mode == "modified":
         logger.info(
-            "Modified training mode active: scope=%s, rule-based tuning runs every %d steps through step %d; afterwards training continues normally",
+            "Modified training mode active: scope=%s, LR tuning window=%d-%d, strategy tuning window=%d-%d, interval=%d; core_individual LR updates apply when relative loss improvement < %.4f",
             tune_scope,
-            modified_tune_interval,
+            modified_tune_start_step,
             modified_tune_end_step,
+            strategy_tune_start_step,
+            strategy_tune_end_step,
+            modified_tune_interval,
+            tune_min_improvement,
         )
     else:
         logger.info("Baseline training mode active: no deterministic profile adjustments")
@@ -2013,8 +2045,12 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
         payload = {
             "mode": mode,
             "tune_scope": tune_scope,
+            "tune_start_step": modified_tune_start_step,
             "tune_end_step": modified_tune_end_step,
             "tune_interval": modified_tune_interval,
+            "tune_min_improvement": tune_min_improvement,
+            "strategy_tune_start_step": strategy_tune_start_step,
+            "strategy_tune_end_step": strategy_tune_end_step,
             "updates_count": int(tuning_state.get("updates", 0) or 0),
             "updates": list(tuning_state.get("events") or []),
             "last_update": tuning_state.get("last_event"),
@@ -2219,11 +2255,12 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
         """Apply rule-based tuning updates while modified mode is in its tuning window."""
         if mode != "modified":
             return False
-        if step > modified_tune_end_step:
+        effective_tune_end = max(modified_tune_end_step, strategy_tune_end_step)
+        if step > effective_tune_end:
             return False
-        if step < modified_tune_interval:
+        if step < min(modified_tune_start_step, strategy_tune_start_step):
             return False
-        if step % modified_tune_interval != 0 and step != modified_tune_end_step:
+        if step % modified_tune_interval != 0 and step not in {modified_tune_end_step, strategy_tune_end_step}:
             return False
         if tuning_state.get("last_tuned_step") == step:
             return False
@@ -2238,102 +2275,102 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
             except Exception:
                 loss_value = 0.0
 
-            if loss_value >= 0.20:
-                profile = "high_loss"
-                lr_multipliers = {
-                    "means": 0.92,
-                    "opacities": 0.86,
-                    "scales": 1.00,
-                    "quats": 1.00,
-                    "sh0": 0.96,
-                    "shN": 0.96,
-                }
-                strategy_multipliers = {
-                    "grow_grad2d": 0.95,
-                    "prune_opa": 1.00,
-                    "refine_every": 0.96,
-                    "reset_every": 0.98,
-                }
-            elif loss_value >= 0.08:
-                profile = "mid_loss"
-                lr_multipliers = {
-                    "means": 0.96,
-                    "opacities": 0.92,
-                    "scales": 1.00,
-                    "quats": 1.00,
-                    "sh0": 1.00,
-                    "shN": 1.00,
-                }
-                strategy_multipliers = {
-                    "grow_grad2d": 0.97,
-                    "prune_opa": 1.00,
-                    "refine_every": 0.98,
-                    "reset_every": 1.00,
-                }
-            else:
-                profile = "low_loss"
-                lr_multipliers = {
-                    "means": 1.02,
-                    "opacities": 0.99,
-                    "scales": 1.00,
-                    "quats": 1.00,
-                    "sh0": 1.05,
-                    "shN": 1.05,
-                }
-                strategy_multipliers = {
-                    "grow_grad2d": 0.99,
-                    "prune_opa": 1.00,
-                    "refine_every": 0.99,
-                    "reset_every": 1.00,
-                }
+            previous_loss = tuning_state.get("last_checked_loss")
+            tuning_state["last_checked_loss"] = float(loss_value)
+            relative_improvement = None
+            if previous_loss is not None:
+                try:
+                    denom = max(abs(float(previous_loss)), 1e-8)
+                    relative_improvement = (float(previous_loss) - float(loss_value)) / denom
+                except Exception:
+                    relative_improvement = None
 
-            applied_multipliers = {
-                "lr": float(lr_multipliers["means"]),
-                "opacity_lr_mult": float(lr_multipliers["opacities"]),
-                "sh_lr_mult": float((float(lr_multipliers["sh0"]) + float(lr_multipliers["shN"])) / 2.0),
-                "position_lr_mult": float(lr_multipliers["means"]),
-                "densify_threshold_mult": float(strategy_multipliers["grow_grad2d"]),
+            if tune_scope == "core_individual":
+                if relative_improvement is None:
+                    return False
+                if float(relative_improvement) >= float(tune_min_improvement):
+                    return False
+
+            apply_lr = modified_tune_start_step <= step <= modified_tune_end_step
+            apply_strategy = strategy_tune_start_step <= step <= strategy_tune_end_step
+            if tune_scope == "core_individual":
+                apply_strategy = False
+            if not apply_lr and not apply_strategy:
+                return False
+
+            profile_data = select_rule_profile(loss_value)
+            profile = profile_data.name
+            applied_multipliers = build_rule_multiplier_summary(tune_scope, profile_data)
+            scope_multipliers = {
+                "lr": dict(profile_data.lr_multipliers),
+                "strategy": dict(profile_data.strategy_multipliers),
             }
 
-            before_lrs: dict[str, float] = {}
-            after_lrs: dict[str, float] = {}
-            for name, mult in lr_multipliers.items():
-                optimizer = getattr(runner_obj, "optimizers", {}).get(name)
-                if optimizer is None or not optimizer.param_groups:
+            scope_updates = apply_tune_scope(
+                tune_scope,
+                runner_obj,
+                profile_data,
+                apply_lr=apply_lr,
+                apply_strategy=apply_strategy,
+            )
+            before_lrs = dict(scope_updates.get("before_lrs") or {})
+            after_lrs = dict(scope_updates.get("after_lrs") or {})
+            strategy_before = dict(scope_updates.get("strategy_before") or {})
+            strategy_after = dict(scope_updates.get("strategy_after") or {})
+            adjustments = list(scope_updates.get("adjustments") or [])
+            lr_change_details: dict[str, dict[str, float]] = {}
+            for name, before_val in before_lrs.items():
+                after_val = after_lrs.get(name)
+                if after_val is None:
                     continue
-                current_lr = float(optimizer.param_groups[0].get("lr", 0.0))
-                before_lrs[name] = current_lr
-                new_lr = max(1e-7, min(1.0, current_lr * float(mult)))
-                for group in optimizer.param_groups:
-                    group["lr"] = new_lr
-                after_lrs[name] = new_lr
+                multiplier = None
+                try:
+                    if float(before_val) != 0.0:
+                        multiplier = float(after_val) / float(before_val)
+                except Exception:
+                    multiplier = None
+                lr_change_details[name] = {
+                    "before": float(before_val),
+                    "after": float(after_val),
+                    "multiplier": float(multiplier) if multiplier is not None else 1.0,
+                }
 
-            strategy = getattr(getattr(runner_obj, "cfg", None), "strategy", None)
-            strategy_before: dict[str, float] = {}
-            strategy_after: dict[str, float] = {}
-            if strategy is not None:
-                for key in ("grow_grad2d", "prune_opa", "refine_every", "reset_every"):
-                    strategy_before[key] = float(getattr(strategy, key))
+            strategy_change_details: dict[str, dict[str, float]] = {}
+            for key, before_val in strategy_before.items():
+                after_val = strategy_after.get(key)
+                if after_val is None:
+                    continue
+                strategy_change_details[key] = {
+                    "before": float(before_val),
+                    "after": float(after_val),
+                }
 
-                strategy.grow_grad2d = max(5e-5, min(5e-3, float(strategy.grow_grad2d) * float(strategy_multipliers["grow_grad2d"])))
-                if tune_scope == "with_strategy":
-                    strategy.prune_opa = max(1e-4, min(5e-2, float(strategy.prune_opa) * float(strategy_multipliers["prune_opa"])))
-                    strategy.refine_every = max(25, min(300, int(float(strategy.refine_every) * float(strategy_multipliers["refine_every"]))))
-                    strategy.reset_every = max(max(strategy.refine_every, 1000), min(6000, int(float(strategy.reset_every) * float(strategy_multipliers["reset_every"]))))
-
-                for key in ("grow_grad2d", "prune_opa", "refine_every", "reset_every"):
-                    strategy_after[key] = float(getattr(strategy, key))
+            has_lr_updates = any(
+                abs(float(v.get("after", 0.0)) - float(v.get("before", 0.0))) > 1e-15
+                for v in lr_change_details.values()
+            )
+            has_strategy_updates = any(
+                abs(float(v.get("after", 0.0)) - float(v.get("before", 0.0))) > 1e-12
+                for v in strategy_change_details.values()
+            )
+            if not has_lr_updates and not has_strategy_updates:
+                tuning_state["last_tuned_step"] = int(step)
+                return False
 
             event = {
                 "step": int(step),
                 "loss": loss_value,
+                "previous_loss": float(previous_loss) if previous_loss is not None else None,
+                "relative_improvement": float(relative_improvement) if relative_improvement is not None else None,
+                "required_min_improvement": float(tune_min_improvement),
+                "apply_lr": bool(apply_lr),
+                "apply_strategy": bool(apply_strategy),
                 "profile": profile,
                 "scope": tune_scope,
                 "rule_multipliers": applied_multipliers,
-                "adjustments": [
-                    "rule_based_lr_scaling",
-                    "rule_based_strategy_scaling",
-                ],
+                "scope_multipliers": scope_multipliers,
+                "adjustments": adjustments,
+                "lr_changes": lr_change_details,
                 "params": {
                     "learning_rates": after_lrs,
                     "strategy": strategy_after,
@@ -2357,22 +2394,41 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
                 last_tuning={
                     "step": int(step),
                     "action": f"Rule-based {profile} update",
-                    "reason": f"Modified mode rule check (step {step} <= {modified_tune_end_step})",
+                    "reason": f"Modified mode rule check (LR {modified_tune_start_step}-{modified_tune_end_step}, strategy {strategy_tune_start_step}-{strategy_tune_end_step})",
+                    "scope": tune_scope,
+                    "profile": profile,
+                    "lr_changes": lr_change_details,
+                    "adjustments": adjustments,
                 },
             )
             logger.info(
-                "Modified rule update applied at step %d/%d (loss=%.6f, profile=%s, scope=%s)",
+                "Modified rule update applied at step %d (lr_window=%d-%d, strategy_window=%d-%d, apply_lr=%s, apply_strategy=%s, loss=%.6f, prev_loss=%s, rel_improve=%s, min_improve=%.4f, profile=%s, scope=%s)",
                 step,
+                modified_tune_start_step,
                 modified_tune_end_step,
+                strategy_tune_start_step,
+                strategy_tune_end_step,
+                str(bool(apply_lr)),
+                str(bool(apply_strategy)),
                 loss_value,
+                f"{float(previous_loss):.6f}" if previous_loss is not None else "n/a",
+                f"{float(relative_improvement):.6f}" if relative_improvement is not None else "n/a",
+                tune_min_improvement,
                 profile,
                 tune_scope,
             )
             logger.info(
-                "Modified rule details step=%d before_lrs=%s after_lrs=%s before_strategy=%s after_strategy=%s",
+                "Modified rule multipliers step=%d profile=%s scope=%s lr=%s strategy=%s",
                 step,
-                json.dumps(before_lrs, sort_keys=True),
-                json.dumps(after_lrs, sort_keys=True),
+                profile,
+                tune_scope,
+                json.dumps(scope_multipliers.get("lr", {}), sort_keys=True),
+                json.dumps(scope_multipliers.get("strategy", {}), sort_keys=True),
+            )
+            logger.info(
+                "Modified rule details step=%d lr_changes=%s before_strategy=%s after_strategy=%s",
+                step,
+                json.dumps(lr_change_details, sort_keys=True),
                 json.dumps(strategy_before, sort_keys=True),
                 json.dumps(strategy_after, sort_keys=True),
             )
@@ -2396,18 +2452,7 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
         **_: object,
     ) -> None:
         max_steps = int(max_steps if max_steps is not None else p.get("max_steps", 0))
-        if mode == "modified" and step == modified_tune_interval:
-            logger.info(
-                "Modified tuning window started at step %d; rule checks every %d steps until step %d",
-                step,
-                modified_tune_interval,
-                modified_tune_end_step,
-            )
         if mode == "modified" and not tuning_state.get("phase_complete_logged") and step == modified_tune_end_step + 1:
-            logger.info(
-                "Modified tuning window finished at step %d; continuing with tuned parameters and no further rule updates",
-                modified_tune_end_step,
-            )
             tuning_state["phase_complete_logged"] = True
         apply_modified_rules(step, loss)
         requested_stop = stop_checker()
@@ -2436,7 +2481,7 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
             status_text,
             progress=60 + int(progress_fraction * 35),
             mode=mode,
-            tuning_active=(mode == "modified" and step <= modified_tune_end_step),
+            tuning_active=(mode == "modified" and step <= max(modified_tune_end_step, strategy_tune_end_step)),
             currentStep=step,
             maxSteps=max_steps,
             stop_requested=requested_stop,
@@ -2624,15 +2669,21 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
         tb_every=0,
     )
     cfg.disable_tqdm = not bool(p.get("enable_tqdm", False))
-    cfg.progress_every = max(1, int(log_interval))
+    progress_every = max(1, int(log_interval))
+    if mode == "modified":
+        # Ensure rule checks can run at tuning cadence even when log cadence is coarser.
+        progress_every = min(progress_every, max(1, int(modified_tune_interval)))
+    cfg.progress_every = progress_every
     if cfg.disable_tqdm:
         os.environ["TQDM_DISABLE"] = "1"
     else:
         os.environ.pop("TQDM_DISABLE", None)
 
     logger.info(
-        "GSPLAT logging cadence: snapshot every %d steps (config key: log_interval); tqdm=%s",
+        "GSPLAT logging cadence: snapshot every %d steps (log_interval), callback every %d steps, modified_tune_interval=%d; tqdm=%s",
         log_interval,
+        cfg.progress_every,
+        modified_tune_interval,
         "disabled" if cfg.disable_tqdm else "enabled",
     )
 
@@ -2796,8 +2847,12 @@ def run_gsplat_training(image_dir: Path, colmap_dir: Path, output_dir: Path, par
             "tune_scope": tune_scope if mode == "modified" else None,
             "final_evaluation": final_metrics,
             "evaluation_parameters": evaluation_parameters,
+            "tune_start_step": modified_tune_start_step if mode == "modified" else None,
             "tune_end_step": modified_tune_end_step if mode == "modified" else final_eval.get("step"),
             "tune_interval": modified_tune_interval if mode == "modified" else None,
+            "tune_min_improvement": tune_min_improvement if mode == "modified" else None,
+            "strategy_tune_start_step": strategy_tune_start_step if mode == "modified" else None,
+            "strategy_tune_end_step": strategy_tune_end_step if mode == "modified" else None,
             "tuning_history": list(tuning_state.get("events") or []),
             "final_params": (tuning_state.get("last_event") or {}).get("params", {}),
         }

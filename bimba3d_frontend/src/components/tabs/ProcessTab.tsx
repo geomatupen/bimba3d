@@ -61,6 +61,7 @@ interface SparseMergeReport {
 }
 
 type TrainingEngine = "gsplat" | "litegs";
+type TuneScope = "core_individual" | "core_only" | "core_individual_plus_strategy";
 
 const extractSnapshotStep = (name?: string): number | null => {
   if (!name) return null;
@@ -89,9 +90,11 @@ const COLMAP_CAMERA_MODELS = [
 
 const getDefaultProcessConfig = () => ({
   mode: "baseline" as "baseline" | "modified",
+  tune_start_step: 100,
+  tune_min_improvement: 0.005,
   tune_end_step: 200,
   tune_interval: 25,
-  tune_scope: "with_strategy" as "core_only" | "with_strategy",
+  tune_scope: "core_individual_plus_strategy" as TuneScope,
   engine: "gsplat" as TrainingEngine,
   maxSteps: 30000,
   logInterval: 100,
@@ -160,9 +163,11 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
   // Load persisted config and expose individual controls
   const cfg = loadConfig();
   const [mode, setMode] = useState<"baseline" | "modified">(cfg.mode ?? "baseline");
+  const [tuneStartStep, setTuneStartStep] = useState<number>(cfg.tune_start_step ?? 100);
+  const [tuneMinImprovement, setTuneMinImprovement] = useState<number>(cfg.tune_min_improvement ?? 0.005);
   const [tuneEndStep, setTuneEndStep] = useState<number>(cfg.tune_end_step ?? 200);
   const [tuneInterval, setTuneInterval] = useState<number>(cfg.tune_interval ?? 25);
-  const [tuneScope, setTuneScope] = useState<"core_only" | "with_strategy">(cfg.tune_scope ?? "with_strategy");
+  const [tuneScope, setTuneScope] = useState<TuneScope>(cfg.tune_scope ?? "core_individual_plus_strategy");
   const [engine, setEngine] = useState<TrainingEngine>(cfg.engine ?? "gsplat");
   const [maxSteps, setMaxSteps] = useState<number>(cfg.maxSteps ?? 30000);
   const [logInterval, setLogInterval] = useState<number>(cfg.logInterval ?? 100);
@@ -250,9 +255,11 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
 
   const trainingInfo: Record<string, string> = {
     mode: 'Training profile. Baseline keeps default behavior; Modified applies deterministic tuning profile during training.',
+    tune_start_step: 'For Modified mode, this is the first step where tuning checks are allowed. Before this step, no rule-based LR updates are applied.',
+    tune_min_improvement: 'For Core individual scope, apply a tuning update only if relative loss improvement since the previous tuning check is below this threshold (example: 0.005 = 0.5%).',
     tune_end_step: 'For Modified mode, this is the last step where rule-based tuning updates are allowed. The worker keeps applying rule checks until this step, then continues normal training.',
     tune_interval: 'For Modified mode, worker evaluates and applies rule-based updates every N steps during the tuning window.',
-    tune_scope: 'Rule tuning scope: Core only updates listed LR/threshold knobs; Core + strategy also updates additional strategy cadence/pruning controls.',
+    tune_scope: 'Rule tuning scope: Core individual updates only LR groups. Core only updates LR groups + core strategy threshold. Core individual + strategy updates LR groups and full strategy controls.',
     // --- ORIGINAL KERBL PARAMETERS ---
     maxSteps: 'Total training iterations. This value is sent from frontend in both baseline and modified modes. [original]',
     logInterval: 'How often (in steps) to print consolidated training snapshots in worker logs. Lower values are more verbose. [custom]',
@@ -335,9 +342,11 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
 
   const applyTrainingDefaults = (defaults: ReturnType<typeof getDefaultProcessConfig>) => {
     setMode(defaults.mode ?? "baseline");
+    setTuneStartStep(defaults.tune_start_step ?? 100);
+    setTuneMinImprovement(defaults.tune_min_improvement ?? 0.005);
     setTuneEndStep(defaults.tune_end_step ?? 200);
     setTuneInterval(defaults.tune_interval ?? 25);
-    setTuneScope(defaults.tune_scope ?? "with_strategy");
+    setTuneScope(defaults.tune_scope ?? "core_individual_plus_strategy");
     setEngine(defaults.engine ?? "gsplat");
     setMaxSteps(defaults.maxSteps);
     setLogInterval(defaults.logInterval ?? 100);
@@ -397,6 +406,8 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
   useEffect(() => {
     const config = {
       mode,
+      tune_start_step: tuneStartStep,
+      tune_min_improvement: tuneMinImprovement,
       tune_end_step: tuneEndStep,
       tune_interval: tuneInterval,
       tune_scope: tuneScope,
@@ -436,7 +447,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
       }
     };
     localStorage.setItem(`processConfig_${projectId}`, JSON.stringify(config));
-  }, [mode, tuneEndStep, tuneInterval, tuneScope, engine, maxSteps, logInterval, splatInterval, pngInterval, evalInterval, saveInterval, sparsePreference, sparseMergeSelection, imagesResizeEnabled, imagesMaxSize, densifyFromIter, densifyUntilIter, densificationInterval, densifyGradThreshold, opacityThreshold, lambdaDssim, projectId, colmapMaxImageSize, colmapPeakThreshold, colmapGuidedMatching, colmapCameraModel, colmapSingleCamera, colmapCameraParams, colmapMatchingType, colmapMapperThreads, colmapMapperMinNumMatches, colmapMapperAbsPoseMinNumInliers, colmapMapperInitMinNumInliers, colmapSiftMatchingMinNumInliers, colmapRunImageRegistrator, litegsTargetPrimitives, litegsAlphaShrink]);
+  }, [mode, tuneStartStep, tuneMinImprovement, tuneEndStep, tuneInterval, tuneScope, engine, maxSteps, logInterval, splatInterval, pngInterval, evalInterval, saveInterval, sparsePreference, sparseMergeSelection, imagesResizeEnabled, imagesMaxSize, densifyFromIter, densifyUntilIter, densificationInterval, densifyGradThreshold, opacityThreshold, lambdaDssim, projectId, colmapMaxImageSize, colmapPeakThreshold, colmapGuidedMatching, colmapCameraModel, colmapSingleCamera, colmapCameraParams, colmapMatchingType, colmapMapperThreads, colmapMapperMinNumMatches, colmapMapperAbsPoseMinNumInliers, colmapMapperInitMinNumInliers, colmapSiftMatchingMinNumInliers, colmapRunImageRegistrator, litegsTargetPrimitives, litegsAlphaShrink]);
 
   useEffect(() => {
     const checkGpu = async () => {
@@ -1456,6 +1467,8 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
       const effectiveMode = engine === "gsplat" ? mode : "baseline";
       await api.post(`/projects/${projectId}/process`, {
         mode: effectiveMode,
+        tune_start_step: effectiveMode === "modified" ? tuneStartStep : undefined,
+        tune_min_improvement: effectiveMode === "modified" ? tuneMinImprovement : undefined,
         tune_end_step: effectiveMode === "modified" ? tuneEndStep : undefined,
         tune_interval: effectiveMode === "modified" ? tuneInterval : undefined,
         tune_scope: effectiveMode === "modified" ? tuneScope : undefined,
@@ -1524,6 +1537,8 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
       const effectiveMode = engine === "gsplat" ? mode : "baseline";
       await api.post(`/projects/${projectId}/process`, {
         mode: effectiveMode,
+        tune_start_step: effectiveMode === "modified" ? tuneStartStep : undefined,
+        tune_min_improvement: effectiveMode === "modified" ? tuneMinImprovement : undefined,
         tune_end_step: effectiveMode === "modified" ? tuneEndStep : undefined,
         tune_interval: effectiveMode === "modified" ? tuneInterval : undefined,
         tune_scope: effectiveMode === "modified" ? tuneScope : undefined,
@@ -2249,6 +2264,46 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                             {engine === "gsplat" && mode === "modified" && (
                               <div>
                                 <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                                  <span>Modified tuning start step</span>
+                                  <button onClick={() => setSelectedInfoKey("tune_start_step")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
+                                </label>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  step={1}
+                                  value={tuneStartStep}
+                                  onChange={(e) => setTuneStartStep(Math.max(1, parseInt(e.target.value) || 100))}
+                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                                <p className="text-[11px] text-slate-500 mt-1">Tuning checks are disabled before this step so early optimization is not over-constrained.</p>
+                              </div>
+                            )}
+                            {engine === "gsplat" && mode === "modified" && (
+                              <div>
+                                <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                                  <span>Minimum improvement for update</span>
+                                  <button onClick={() => setSelectedInfoKey("tune_min_improvement")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
+                                </label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={1}
+                                  step={0.001}
+                                  value={tuneMinImprovement}
+                                  onChange={(e) => {
+                                    const value = parseFloat(e.target.value);
+                                    if (Number.isFinite(value)) {
+                                      setTuneMinImprovement(Math.max(0, Math.min(1, value)));
+                                    }
+                                  }}
+                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                                <p className="text-[11px] text-slate-500 mt-1">Core individual updates only when relative loss improvement drops below this value.</p>
+                              </div>
+                            )}
+                            {engine === "gsplat" && mode === "modified" && (
+                              <div>
+                                <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
                                   <span>Modified tuning end step</span>
                                   <button onClick={() => setSelectedInfoKey("tune_end_step")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                                 </label>
@@ -2288,13 +2343,14 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                 </label>
                                 <select
                                   value={tuneScope}
-                                  onChange={(e) => setTuneScope((e.target.value as "core_only" | "with_strategy") || "with_strategy")}
+                                  onChange={(e) => setTuneScope((e.target.value as TuneScope) || "core_individual_plus_strategy")}
                                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 >
+                                  <option value="core_individual">Core individual</option>
                                   <option value="core_only">Core only</option>
-                                  <option value="with_strategy">Core + strategy</option>
+                                  <option value="core_individual_plus_strategy">Core individual + strategy</option>
                                 </select>
-                                <p className="text-[11px] text-slate-500 mt-1">Core only tunes listed LR/threshold knobs. Core + strategy also tunes extra strategy controls.</p>
+                                <p className="text-[11px] text-slate-500 mt-1">Core individual tunes only LR groups. Core only also tunes grow threshold. Core individual + strategy tunes LR plus full strategy controls.</p>
                               </div>
                             )}
                             <div className="md:col-span-2">

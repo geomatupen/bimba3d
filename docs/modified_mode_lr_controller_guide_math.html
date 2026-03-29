@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Modified Mode Tuning Book</title>
+  <style>
+    :root {
+      --paper: #f8f4ea;
+      --ink: #1f1a16;
+      --muted: #5f554d;
+      --accent: #8c4f2b;
+      --accent-soft: #f2e1d3;
+      --card: #fffdf8;
+      --line: #e6d8c9;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% -20%, #fff6df 0%, transparent 38%),
+        radial-gradient(circle at 90% 0%, #f7e8d9 0%, transparent 32%),
+        var(--paper);
+      font-family: Georgia, "Times New Roman", Times, serif;
+      line-height: 1.65;
+    }
+
+    .frame {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 24px 18px 80px;
+    }
+
+    .book {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--card);
+      box-shadow: 0 20px 40px rgba(40, 23, 10, 0.08);
+      overflow: hidden;
+    }
+
+    .cover {
+      padding: 36px 28px;
+      border-bottom: 1px solid var(--line);
+      background:
+        linear-gradient(120deg, #fff9ef 0%, #f8efe3 100%);
+    }
+
+    .cover h1 {
+      margin: 0 0 8px;
+      font-size: 2rem;
+      letter-spacing: 0.3px;
+    }
+
+    .cover p {
+      margin: 0;
+      color: var(--muted);
+      max-width: 70ch;
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 0;
+    }
+
+    .toc {
+      border-right: 1px solid var(--line);
+      padding: 22px 16px 28px;
+      background: #fffcf6;
+      position: sticky;
+      top: 0;
+      align-self: start;
+      max-height: 100vh;
+      overflow: auto;
+    }
+
+    .toc h2 {
+      margin: 0 0 10px;
+      font-size: 1.05rem;
+      color: var(--accent);
+    }
+
+    .toc a {
+      display: block;
+      color: var(--ink);
+      text-decoration: none;
+      margin: 7px 0;
+      padding-left: 4px;
+      border-left: 2px solid transparent;
+      font-size: 0.95rem;
+    }
+
+    .toc a:hover {
+      color: var(--accent);
+      border-left-color: var(--accent);
+    }
+
+    main {
+      padding: 24px 26px 34px;
+    }
+
+    .chapter {
+      margin: 0 0 26px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fffefb;
+    }
+
+    .chapter-head {
+      padding: 12px 14px;
+      background: var(--accent-soft);
+      border-bottom: 1px solid var(--line);
+      color: #65371f;
+      font-weight: 700;
+    }
+
+    .chapter-body {
+      padding: 14px;
+    }
+
+    h3 {
+      margin: 12px 0 8px;
+      font-size: 1.1rem;
+    }
+
+    p { margin: 8px 0; }
+
+    ul, ol {
+      margin: 8px 0 8px 22px;
+      padding: 0;
+    }
+
+    li { margin: 4px 0; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 0.95rem;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #fbf2e9;
+      color: #5a3320;
+    }
+
+    code {
+      background: #f7efe6;
+      border: 1px solid #ecd9c8;
+      border-radius: 6px;
+      padding: 1px 6px;
+      font-family: "Cascadia Code", Consolas, Monaco, monospace;
+      font-size: 0.9em;
+    }
+
+    .tip {
+      margin: 10px 0;
+      padding: 10px 12px;
+      border: 1px solid #e2cdbb;
+      border-radius: 10px;
+      background: #fff7ef;
+    }
+
+    @media (max-width: 900px) {
+      .content { grid-template-columns: 1fr; }
+      .toc {
+        position: static;
+        max-height: none;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      main { padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <article class="book">
+      <header class="cover">
+        <h1>Modified Mode Tuning Book</h1>
+        <p>
+          A practical, chapter-style guide for all three tuning scopes.
+          Includes what is tuned, what happens at the beginning of training,
+          and how to choose the right scope for your next run.
+        </p>
+      </header>
+
+      <div class="content">
+        <nav class="toc" aria-label="Table of contents">
+          <h2>Contents</h2>
+          <a href="#chapter-1">Chapter 1 - Scope Index</a>
+          <a href="#chapter-2">Chapter 2 - Tuned Parameters</a>
+          <a href="#chapter-3">Chapter 3 - Beginning Behavior</a>
+          <a href="#chapter-4">Chapter 4 - Scope Details</a>
+          <a href="#chapter-5">Chapter 5 - Suggested Presets</a>
+          <a href="#chapter-6">Chapter 6 - Reading Your Logs</a>
+        </nav>
+
+        <main>
+          <section id="chapter-1" class="chapter">
+            <div class="chapter-head">Chapter 1 - Scope Index</div>
+            <div class="chapter-body">
+              <p>
+                The UI exposes three tuning scopes.
+              </p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Scope</th>
+                    <th>What It Touches</th>
+                    <th>Risk Level</th>
+                    <th>Best Use</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>core_only</code></td>
+                    <td>Learning rates plus only <code>grow_grad2d</code></td>
+                    <td>Low</td>
+                    <td>Closest to baseline behavior with light adaptation</td>
+                  </tr>
+                  <tr>
+                    <td><code>core_individual</code></td>
+                    <td>Learning rates only (per group)</td>
+                    <td>Medium</td>
+                    <td>LR shaping when densification policy should remain stable</td>
+                  </tr>
+                  <tr>
+                    <td><code>core_individual_plus_strategy</code></td>
+                    <td>Learning rates plus full strategy set</td>
+                    <td>High</td>
+                    <td>Advanced tuning once you already match baseline early signals</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p>
+                Internal note: <code>with_strategy</code> is a legacy backend alias that is automatically normalized
+                to <code>core_individual_plus_strategy</code>. It is not a separate user-facing scope.
+              </p>
+            </div>
+          </section>
+
+          <section id="chapter-2" class="chapter">
+            <div class="chapter-head">Chapter 2 - Tuned Parameters</div>
+            <div class="chapter-body">
+              <h3>2.1 Learning-rate groups that are tuned</h3>
+              <p>
+                Modified mode multiplies optimizer learning rates for these groups:
+                <code>means</code>, <code>opacities</code>, <code>scales</code>, <code>quats</code>, <code>sh0</code>, <code>shN</code>.
+              </p>
+
+              <h3>2.1a What each LR group does</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Group</th>
+                    <th>What It Represents</th>
+                    <th>If LR Is Higher</th>
+                    <th>If LR Is Lower</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>means</code></td>
+                    <td>3D Gaussian center positions in space.</td>
+                    <td>Faster geometry movement and scene re-alignment.</td>
+                    <td>More stable geometry, slower correction of misplacement.</td>
+                  </tr>
+                  <tr>
+                    <td><code>opacities</code></td>
+                    <td>Visibility/transparency strength of each Gaussian.</td>
+                    <td>Quicker visibility changes; can prune/keep differently.</td>
+                    <td>Smoother opacity evolution; less abrupt appearance changes.</td>
+                  </tr>
+                  <tr>
+                    <td><code>scales</code></td>
+                    <td>Gaussian size (spatial spread/footprint).</td>
+                    <td>Faster resizing, can cover errors quickly but may blur.</td>
+                    <td>More conservative size updates and steadier detail structure.</td>
+                  </tr>
+                  <tr>
+                    <td><code>quats</code></td>
+                    <td>Gaussian orientation (rotation via quaternions).</td>
+                    <td>Faster orientation correction for anisotropic splats.</td>
+                    <td>More stable orientation, slower directional adjustment.</td>
+                  </tr>
+                  <tr>
+                    <td><code>sh0</code></td>
+                    <td>Low-order spherical harmonics (base color term, diffuse body).</td>
+                    <td>Faster broad color/brightness adaptation.</td>
+                    <td>More stable base tone, slower global color correction.</td>
+                  </tr>
+                  <tr>
+                    <td><code>shN</code></td>
+                    <td>Higher-order spherical harmonics (view-dependent/high-frequency appearance).</td>
+                    <td>Faster specular/detail appearance fitting; can become noisy if too high.</td>
+                    <td>Cleaner but slower high-frequency appearance convergence.</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p>
+                Practical shorthand: <code>sh0</code> controls coarse color body, and <code>shN</code> controls finer directional appearance.
+              </p>
+
+              <h3>2.2 Strategy parameters that may be tuned</h3>
+              <ul>
+                <li><code>grow_grad2d</code>: growth threshold behavior for densification sensitivity.</li>
+                <li><code>prune_opa</code>: pruning opacity threshold.</li>
+                <li><code>refine_every</code>: densification/refinement cadence.</li>
+                <li><code>reset_every</code>: reset cadence tied to refinement behavior.</li>
+              </ul>
+              <p>
+                Scope decides which of these are allowed to move.
+              </p>
+
+              <h3>2.3 Timing parameters that govern adaptation</h3>
+              <ul>
+                <li><code>tune_start_step</code>: first step where LR-side tuning is allowed.</li>
+                <li><code>tune_end_step</code>: last step where LR-side tuning is allowed.</li>
+                <li><code>tune_interval</code>: how often checks happen (every N steps).</li>
+                <li><code>tune_min_improvement</code>: required relative improvement gate.</li>
+                <li><code>densify_from_iter</code>: strategy tuning start (same as strategy window start).</li>
+                <li><code>densify_until_iter</code>: strategy tuning end (same as strategy window end).</li>
+              </ul>
+            </div>
+          </section>
+
+          <section id="chapter-3" class="chapter">
+            <div class="chapter-head">Chapter 3 - What Happens At The Beginning</div>
+            <div class="chapter-body">
+              <h3>3.1 Before <code>tune_start_step</code></h3>
+              <p>
+                No modified LR adaptation is applied. Training follows base optimizer schedules.
+                This is where initial structure and early densification patterns are formed.
+              </p>
+
+              <h3>3.2 Between <code>tune_start_step</code> and <code>tune_end_step</code></h3>
+              <p>
+                LR adaptation can apply every <code>tune_interval</code> steps.
+                In <code>core_individual</code>, the <code>tune_min_improvement</code> gate is used so updates are skipped unless improvement is strong enough.
+              </p>
+
+              <h3>3.3 Strategy window starts at <code>densify_from_iter</code></h3>
+              <p>
+                Strategy-side updates only run in the densification window
+                <code>[densify_from_iter, densify_until_iter]</code>.
+                This means strategy can be inactive early even while LR tuning is active,
+                depending on your start steps.
+              </p>
+
+              <div class="tip">
+                <strong>Early-signal rule:</strong> if you are not matching baseline by 3k to 5k,
+                start with <code>core_only</code> and delay or narrow strategy influence.
+              </div>
+            </div>
+          </section>
+
+          <section id="chapter-4" class="chapter">
+            <div class="chapter-head">Chapter 4 - Scope Details</div>
+            <div class="chapter-body">
+              <h3>4.1 <code>core_only</code></h3>
+              <ul>
+                <li>Applies LR multipliers by profile (<code>high_loss</code>, <code>mid_loss</code>, <code>low_loss</code>).</li>
+                <li>Applies strategy only to <code>grow_grad2d</code>.</li>
+                <li>Does not change <code>prune_opa</code>, <code>refine_every</code>, <code>reset_every</code>.</li>
+              </ul>
+
+              <h3>4.2 <code>core_individual</code></h3>
+              <ul>
+                <li>Applies LR multipliers only.</li>
+                <li>No strategy parameter changes.</li>
+                <li>Uses the improvement gate logic in the modified control path.</li>
+              </ul>
+
+              <h3>4.3 <code>core_individual_plus_strategy</code></h3>
+              <ul>
+                <li>Applies LR multipliers.</li>
+                <li>Applies full strategy updates: <code>grow_grad2d</code>, <code>prune_opa</code>, <code>refine_every</code>, <code>reset_every</code>.</li>
+                <li>Most powerful scope, also easiest to destabilize early growth if timing is aggressive.</li>
+              </ul>
+
+              <h3>4.4 Rule profiles used by all scopes</h3>
+              <p>
+                Profile is selected from loss level:
+              </p>
+              <ul>
+                <li><code>high_loss</code> when loss >= 0.20</li>
+                <li><code>mid_loss</code> when loss >= 0.08</li>
+                <li><code>low_loss</code> otherwise</li>
+              </ul>
+
+              <h3>4.5 How values are updated</h3>
+              <p>
+                At an eligible tuning step, each tuned value is multiplied by the profile multiplier.
+              </p>
+              <p>
+                <strong>What clamp means:</strong> <code>clamp(x, min, max)</code> keeps a value inside bounds.
+                If <code>x</code> is below <code>min</code>, result is <code>min</code>. If <code>x</code> is above <code>max</code>,
+                result is <code>max</code>. Otherwise, result is <code>x</code>.
+              </p>
+              <ul>
+                <li>Example: <code>clamp(1.2, 0.0, 1.0) = 1.0</code></li>
+                <li>Example: <code>clamp(-0.1, 0.0, 1.0) = 0.0</code></li>
+                <li>Example: <code>clamp(0.6, 0.0, 1.0) = 0.6</code></li>
+              </ul>
+              <ul>
+                <li><code>new_lr[group] = clamp(old_lr[group] * lr_mult[group], 1e-7, 1.0)</code></li>
+                <li><code>new_grow_grad2d = clamp(old_grow_grad2d * mult, 5e-5, 5e-3)</code></li>
+                <li><code>new_prune_opa = clamp(old_prune_opa * mult, 1e-4, 5e-2)</code></li>
+                <li><code>new_refine_every = clamp(int(old_refine_every * mult), 25, 300)</code></li>
+                <li><code>new_reset_every = clamp(int(old_reset_every * mult), max(refine_every, 1000), 6000)</code></li>
+              </ul>
+
+              <h3>4.5a Exactly what gets updated in each scope</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Scope</th>
+                    <th>LR Parameters Updated</th>
+                    <th>Strategy Parameters Updated</th>
+                    <th>Not Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>core_individual</code></td>
+                    <td>
+                      <code>means</code>, <code>opacities</code>, <code>scales</code>,
+                      <code>quats</code>, <code>sh0</code>, <code>shN</code>
+                    </td>
+                    <td>None</td>
+                    <td>
+                      <code>grow_grad2d</code>, <code>prune_opa</code>,
+                      <code>refine_every</code>, <code>reset_every</code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>core_only</code></td>
+                    <td>
+                      <code>means</code>, <code>opacities</code>, <code>scales</code>,
+                      <code>quats</code>, <code>sh0</code>, <code>shN</code>
+                    </td>
+                    <td><code>grow_grad2d</code> only</td>
+                    <td><code>prune_opa</code>, <code>refine_every</code>, <code>reset_every</code></td>
+                  </tr>
+                  <tr>
+                    <td><code>core_individual_plus_strategy</code></td>
+                    <td>
+                      <code>means</code>, <code>opacities</code>, <code>scales</code>,
+                      <code>quats</code>, <code>sh0</code>, <code>shN</code>
+                    </td>
+                    <td>
+                      <code>grow_grad2d</code>, <code>prune_opa</code>,
+                      <code>refine_every</code>, <code>reset_every</code>
+                    </td>
+                    <td>None (within window and apply flags)</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p>
+                In short: all three scopes update the same six LR groups; the difference is strategy coverage
+                (none, only <code>grow_grad2d</code>, or full strategy set).
+              </p>
+
+              <h3>4.6 Profile multipliers (exact values)</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Profile</th>
+                    <th>Trigger</th>
+                    <th>LR Multipliers</th>
+                    <th>Strategy Multipliers</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>high_loss</code></td>
+                    <td>loss >= 0.20</td>
+                    <td>
+                      means=0.92, opacities=0.86, scales=1.00, quats=1.00,
+                      sh0=0.96, shN=0.96
+                    </td>
+                    <td>
+                      grow_grad2d=1.02, prune_opa=1.01, refine_every=1.04, reset_every=1.02
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>mid_loss</code></td>
+                    <td>0.08 <= loss &lt; 0.20</td>
+                    <td>
+                      means=0.96, opacities=0.92, scales=1.00, quats=1.00,
+                      sh0=1.00, shN=1.00
+                    </td>
+                    <td>
+                      grow_grad2d=1.01, prune_opa=1.005, refine_every=1.02, reset_every=1.01
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>low_loss</code></td>
+                    <td>loss &lt; 0.08</td>
+                    <td>
+                      means=1.02, opacities=0.99, scales=1.00, quats=1.00,
+                      sh0=1.05, shN=1.05
+                    </td>
+                    <td>
+                      grow_grad2d=1.00, prune_opa=1.00, refine_every=1.01, reset_every=1.00
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <h3>4.7 Example update at one step</h3>
+              <p>
+                If profile is <code>mid_loss</code>, and current values are
+                <code>means_lr=1.0e-4</code>, <code>opacities_lr=0.05</code>, <code>refine_every=250</code>, then after one update:
+              </p>
+              <ul>
+                <li><code>means_lr -> 9.6e-5</code> (multiplied by 0.96)</li>
+                <li><code>opacities_lr -> 0.046</code> (multiplied by 0.92)</li>
+                <li><code>refine_every -> 255</code> (multiplied by 1.02 and rounded to int)</li>
+              </ul>
+            </div>
+          </section>
+
+          <section id="chapter-5" class="chapter">
+            <div class="chapter-head">Chapter 5 - Suggested Presets</div>
+            <div class="chapter-body">
+              <h3>5.1 Safe start (recommended first test)</h3>
+              <ul>
+                <li><code>tune_scope=core_only</code></li>
+                <li><code>tune_start_step=3500</code></li>
+                <li><code>tune_end_step=10000</code></li>
+                <li><code>tune_interval=200</code></li>
+                <li><code>tune_min_improvement=0.02</code></li>
+                <li><code>densify_from_iter=500</code></li>
+                <li><code>densify_until_iter=10000</code></li>
+              </ul>
+
+              <h3>5.2 Next test after early parity is achieved</h3>
+              <ul>
+                <li>Switch to <code>core_individual</code></li>
+                <li>Move <code>tune_start_step</code> later (for example 5000)</li>
+                <li>Keep strategy stable until confidence is built</li>
+              </ul>
+
+              <h3>5.3 Advanced test</h3>
+              <ul>
+                <li>Use <code>core_individual_plus_strategy</code></li>
+                <li>Narrow strategy window to avoid late oscillation</li>
+                <li>Only after baseline-like growth is confirmed</li>
+              </ul>
+            </div>
+          </section>
+
+          <section id="chapter-6" class="chapter">
+            <div class="chapter-head">Chapter 6 - Reading Your Logs Quickly</div>
+            <div class="chapter-body">
+              <p>
+                During debugging, inspect these fields first:
+              </p>
+              <ul>
+                <li><code>apply_lr</code> and <code>apply_strategy</code>: confirms which side was active.</li>
+                <li><code>strategy_window</code> and LR window values: confirms timing setup.</li>
+                <li><code>num_gaussians</code> trend by 3k, 5k, 10k: fastest health signal.</li>
+                <li><code>lpips</code> and <code>sharpness</code> at each eval checkpoint.</li>
+              </ul>
+              <div class="tip">
+                If gaussians plateau far below baseline before 10k, treat it as a capacity issue first,
+                then tune scope/timing. Do not tune only final-stage LR.
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </article>
+  </div>
+</body>
+</html>
