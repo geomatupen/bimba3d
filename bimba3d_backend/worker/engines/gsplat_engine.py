@@ -153,24 +153,24 @@ def run_training(
 
     p = params or {}
     mode = p.get("mode", "baseline")
-    max_steps = int(p.get("max_steps", 30_000))
+    max_steps = int(p.get("max_steps", 15_000))
     raw_tune_start_step = p.get("tune_start_step", 100)
     try:
         modified_tune_start_step = max(1, int(raw_tune_start_step))
     except Exception:
         modified_tune_start_step = 100
-    raw_tune_end_step = p.get("tune_end_step", 200)
+    raw_tune_end_step = p.get("tune_end_step", 15000)
     try:
         modified_tune_end_step = max(1, int(raw_tune_end_step))
     except Exception:
-        modified_tune_end_step = 200
+        modified_tune_end_step = 15000
     if modified_tune_start_step > modified_tune_end_step:
         modified_tune_start_step = modified_tune_end_step
-    raw_tune_interval = p.get("tune_interval", 25)
+    raw_tune_interval = p.get("tune_interval", 100)
     try:
         modified_tune_interval = max(1, int(raw_tune_interval))
     except Exception:
-        modified_tune_interval = 25
+        modified_tune_interval = 100
     raw_tune_min_improvement = p.get("tune_min_improvement", 0.005)
     try:
         tune_min_improvement = max(0.0, min(1.0, float(raw_tune_min_improvement)))

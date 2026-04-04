@@ -802,11 +802,15 @@ def process_project(project_id: str, params: ProcessParams | None = Body(None)):
 
         # Repro defaults for provided COLMAP pipelines.
         params_payload.setdefault("stage", "train_only")
-        params_payload.setdefault("max_steps", 30000)
+        params_payload.setdefault("max_steps", 15000)
         params_payload.setdefault("log_interval", 100)
+        params_payload.setdefault("save_interval", 2500)
+        params_payload.setdefault("splat_export_interval", 2500)
+        params_payload.setdefault("tune_end_step", 15000)
+        params_payload.setdefault("tune_interval", 100)
         params_payload.setdefault("batch_size", 1)
         params_payload.setdefault("densify_from_iter", 500)
-        params_payload.setdefault("densify_until_iter", 15000)
+        params_payload.setdefault("densify_until_iter", 10000)
         params_payload.setdefault("densification_interval", 100)
         params_payload.setdefault("densify_grad_threshold", 0.0002)
         params_payload.setdefault("opacity_reset_interval", 3000)

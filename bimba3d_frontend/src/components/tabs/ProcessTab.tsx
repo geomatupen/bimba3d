@@ -139,16 +139,16 @@ const getDefaultProcessConfig = () => ({
   mode: "baseline" as "baseline" | "modified",
   tune_start_step: 100,
   tune_min_improvement: 0.005,
-  tune_end_step: 200,
-  tune_interval: 25,
+  tune_end_step: 15000,
+  tune_interval: 100,
   tune_scope: "core_individual_plus_strategy" as TuneScope,
   engine: "gsplat" as TrainingEngine,
-  maxSteps: 30000,
+  maxSteps: 15000,
   logInterval: 100,
-  splatInterval: 150,
+  splatInterval: 2500,
   pngInterval: 50,
   evalInterval: 1000,
-  saveInterval: 150,
+  saveInterval: 2500,
   sparse_preference: "best",
   sparse_merge_selection: [] as string[],
   colmap: {
@@ -169,7 +169,7 @@ const getDefaultProcessConfig = () => ({
   images_max_size: 1600,
   images_resize_enabled: true,
   densifyFromIter: 500,
-  densifyUntilIter: 15000,
+  densifyUntilIter: 10000,
   densificationInterval: 100,
   densifyGradThreshold: 0.0002,
   opacityThreshold: 0.005,
@@ -212,16 +212,16 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
   const [mode, setMode] = useState<"baseline" | "modified">(cfg.mode ?? "baseline");
   const [tuneStartStep, setTuneStartStep] = useState<number>(cfg.tune_start_step ?? 100);
   const [tuneMinImprovement, setTuneMinImprovement] = useState<number>(cfg.tune_min_improvement ?? 0.005);
-  const [tuneEndStep, setTuneEndStep] = useState<number>(cfg.tune_end_step ?? 200);
-  const [tuneInterval, setTuneInterval] = useState<number>(cfg.tune_interval ?? 25);
+  const [tuneEndStep, setTuneEndStep] = useState<number>(cfg.tune_end_step ?? 15000);
+  const [tuneInterval, setTuneInterval] = useState<number>(cfg.tune_interval ?? 100);
   const [tuneScope, setTuneScope] = useState<TuneScope>(cfg.tune_scope ?? "core_individual_plus_strategy");
   const [engine, setEngine] = useState<TrainingEngine>(cfg.engine ?? "gsplat");
-  const [maxSteps, setMaxSteps] = useState<number>(cfg.maxSteps ?? 30000);
+  const [maxSteps, setMaxSteps] = useState<number>(cfg.maxSteps ?? 15000);
   const [logInterval, setLogInterval] = useState<number>(cfg.logInterval ?? 100);
-  const [splatInterval, setSplatInterval] = useState<number>(cfg.splatInterval ?? 150);
+  const [splatInterval, setSplatInterval] = useState<number>(cfg.splatInterval ?? 2500);
   const [pngInterval, setPngInterval] = useState<number>(cfg.pngInterval ?? 50);
   const [evalInterval, setEvalInterval] = useState<number>(cfg.evalInterval ?? 1000);
-  const [saveInterval, setSaveInterval] = useState<number>(cfg.saveInterval ?? 150);
+  const [saveInterval, setSaveInterval] = useState<number>(cfg.saveInterval ?? 2500);
   const [imagesMaxSize, setImagesMaxSize] = useState<number | undefined>(cfg.images_max_size ?? 1600);
   const [imagesResizeEnabled, setImagesResizeEnabled] = useState<boolean>(cfg.images_resize_enabled ?? true);
   const [, setShowAdvancedTraining] = useState<boolean>(cfg.showAdvancedTraining ?? false);
@@ -241,7 +241,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
   const [sparseMergeBuildLoading, setSparseMergeBuildLoading] = useState<boolean>(false);
   const [sparseMergeBuildMessage, setSparseMergeBuildMessage] = useState<string | null>(null);
   const [densifyFromIter, setDensifyFromIter] = useState<number>(cfg.densifyFromIter ?? 500);
-  const [densifyUntilIter, setDensifyUntilIter] = useState<number>(cfg.densifyUntilIter ?? 15000);
+  const [densifyUntilIter, setDensifyUntilIter] = useState<number>(cfg.densifyUntilIter ?? 10000);
   const [densificationInterval, setDensificationInterval] = useState<number>(cfg.densificationInterval ?? 100);
   const [densifyGradThreshold, setDensifyGradThreshold] = useState<number>(cfg.densifyGradThreshold ?? 0.0002);
   const [opacityThreshold, setOpacityThreshold] = useState<number>(cfg.opacityThreshold ?? 0.005);
@@ -416,8 +416,8 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
     setMode(defaults.mode ?? "baseline");
     setTuneStartStep(defaults.tune_start_step ?? 100);
     setTuneMinImprovement(defaults.tune_min_improvement ?? 0.005);
-    setTuneEndStep(defaults.tune_end_step ?? 200);
-    setTuneInterval(defaults.tune_interval ?? 25);
+    setTuneEndStep(defaults.tune_end_step ?? 15000);
+    setTuneInterval(defaults.tune_interval ?? 100);
     setTuneScope(defaults.tune_scope ?? "core_individual_plus_strategy");
     setEngine(defaults.engine ?? "gsplat");
     setMaxSteps(defaults.maxSteps);
@@ -2885,7 +2885,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                   min={1}
                                   step={1}
                                   value={tuneEndStep}
-                                  onChange={(e) => setTuneEndStep(Math.max(1, parseInt(e.target.value) || 200))}
+                                  onChange={(e) => setTuneEndStep(Math.max(1, parseInt(e.target.value) || 15000))}
                                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 />
                                 <p className="text-[11px] text-slate-500 mt-1">Rule-based updates run until this step (e.g., 300 or 500), then stop.</p>
@@ -2902,7 +2902,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                   min={1}
                                   step={1}
                                   value={tuneInterval}
-                                  onChange={(e) => setTuneInterval(Math.max(1, parseInt(e.target.value) || 25))}
+                                  onChange={(e) => setTuneInterval(Math.max(1, parseInt(e.target.value) || 100))}
                                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 />
                                 <p className="text-[11px] text-slate-500 mt-1">Rule-based checks are evaluated every N steps during the tuning window.</p>
@@ -3098,7 +3098,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                               <input
                                 type="number"
                                 value={maxSteps}
-                                onChange={(e) => setMaxSteps(parseInt(e.target.value) || 30000)}
+                                onChange={(e) => setMaxSteps(parseInt(e.target.value) || 15000)}
                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                                 min={100}
                                 max={50000}
@@ -3123,7 +3123,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                 <input
                                   type="number"
                                   value={splatInterval}
-                                  onChange={(e) => setSplatInterval(parseInt(e.target.value) || 150)}
+                                  onChange={(e) => setSplatInterval(parseInt(e.target.value) || 2500)}
                                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                                   min={50}
                                   step={50}
@@ -3167,7 +3167,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                 <input
                                   type="number"
                                   value={saveInterval}
-                                  onChange={(e) => setSaveInterval(parseInt(e.target.value) || 150)}
+                                  onChange={(e) => setSaveInterval(parseInt(e.target.value) || 2500)}
                                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                                   min={50}
                                   step={50}
