@@ -683,8 +683,10 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
   const leftTuneEndValue = leftTuneEndStep === null ? null : nearestPointValue(leftGraphPoints, leftTuneEndStep);
   const rightTuneEndValue = rightTuneEndStep === null ? null : nearestPointValue(rightGraphPoints, rightTuneEndStep);
   const secondSwipeXPercent = bottomSwipePercent;
-  const topLayerLabel = leftSummary?.name || "Left";
-  const middleLayerLabel = rightSummary?.name || "Right";
+  const leftSessionLabel = leftSummary?.run_name || leftSummary?.run_id || "Left Session";
+  const rightSessionLabel = rightSummary?.run_name || rightSummary?.run_id || "Right Session";
+  const topLayerLabel = leftSessionLabel;
+  const middleLayerLabel = rightSessionLabel;
   const groundTruthLayerLabel = "Ground truth";
 
   return (
@@ -916,7 +918,7 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
                     title="Toggle left series"
                   >
                     <span className={`inline-block w-2 h-2 rounded-full ${showLeftSeries ? "bg-sky-500" : "bg-slate-300"}`} />
-                    <span>{leftSummary.name || "Left"}</span>
+                    <span>{leftSessionLabel}</span>
                   </button>
                   <button
                     type="button"
@@ -926,7 +928,7 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
                     title="Toggle right series"
                   >
                     <span className={`inline-block w-2 h-2 rounded-full ${showRightSeries ? "bg-rose-500" : "bg-slate-300"}`} />
-                    <span>{rightSummary.name || "Right"}</span>
+                    <span>{rightSessionLabel}</span>
                   </button>
                   {(leftMainChangeMarkers.length > 0 || rightMainChangeMarkers.length > 0) && (
                     <button
@@ -1129,7 +1131,7 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-slate-800">Eval Step Image Comparison</p>
-                <p className="text-xs text-slate-500">Choose one eval step; both projects show that same step. Left side is Ground truth, right side is the compared output.</p>
+                <p className="text-xs text-slate-500">Choose one eval step; both sessions show that same step. Left side is Ground truth, right side is the compared output.</p>
               </div>
               <div className="min-w-[220px]">
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Eval step</label>
@@ -1171,7 +1173,7 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
                 >
                   <img
                     src={rightSelectedPreview}
-                    alt={`Right project at step ${selectedEvalStep ?? ""}`}
+                    alt={`Right session at step ${selectedEvalStep ?? ""}`}
                     className={`block w-full h-auto ${showGroundTruthCompare ? "opacity-0 pointer-events-none" : ""}`}
                     draggable={false}
                   />
@@ -1235,7 +1237,7 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
                       }
                     }}
                   >
-                    <img src={leftSelectedPreview} alt={`Left project at step ${selectedEvalStep ?? ""}`} className="block w-full h-auto" draggable={false} />
+                    <img src={leftSelectedPreview} alt={`Left session at step ${selectedEvalStep ?? ""}`} className="block w-full h-auto" draggable={false} />
                     <div className="absolute bottom-2 left-2 px-2 py-1 rounded bg-sky-950/75 text-white text-[11px] font-semibold whitespace-nowrap">
                       {topLayerLabel}
                     </div>
