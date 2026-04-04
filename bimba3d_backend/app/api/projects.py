@@ -2020,6 +2020,7 @@ def get_experiment_summary(project_id: str, engine: str | None = Query(None)):
             "lpips_mean": latest_eval.get("lpips_mean"),
             "sharpness_mean": latest_eval.get("sharpness_mean"),
             "num_gaussians": latest_eval.get("num_gaussians"),
+            "total_time_seconds": None,
         }
         loss_milestones = {}
         if isinstance(latest_eval, dict):
@@ -2028,6 +2029,7 @@ def get_experiment_summary(project_id: str, engine: str | None = Query(None)):
                     loss_milestones[k] = v
 
         eval_series = []
+        eval_time_series = []
         runtime_tuning_series = []
         if isinstance(eval_history, list):
             for point in eval_history:
@@ -2037,6 +2039,13 @@ def get_experiment_summary(project_id: str, engine: str | None = Query(None)):
                 loss_value = point.get("final_loss")
                 if isinstance(step_value, (int, float)) and isinstance(loss_value, (int, float)):
                     eval_series.append({"step": int(step_value), "loss": float(loss_value)})
+
+                conv_speed = point.get("convergence_speed")
+                if isinstance(step_value, (int, float)) and isinstance(conv_speed, (int, float)) and float(conv_speed) > 0:
+                    eval_time_series.append({
+                        "step": int(step_value),
+                        "elapsed_seconds": float(step_value) / float(conv_speed),
+                    })
 
         # Fallback for older runs where eval_history contains step but null final_loss.
         if not eval_series:
@@ -2101,6 +2110,22 @@ def get_experiment_summary(project_id: str, engine: str | None = Query(None)):
 
         if metrics.get("final_loss") is None and eval_series:
             metrics["final_loss"] = eval_series[-1].get("loss")
+
+        timing = status_info.get("timing") if isinstance(status_info, dict) else None
+        if isinstance(timing, dict):
+            elapsed = timing.get("elapsed")
+            if isinstance(elapsed, (int, float)) and float(elapsed) >= 0:
+                metrics["total_time_seconds"] = float(elapsed)
+
+        if metrics.get("total_time_seconds") is None and eval_time_series:
+            try:
+                metrics["total_time_seconds"] = max(
+                    float(item.get("elapsed_seconds"))
+                    for item in eval_time_series
+                    if isinstance(item, dict) and isinstance(item.get("elapsed_seconds"), (int, float))
+                )
+            except ValueError:
+                pass
 
         if metadata and isinstance(metadata, dict):
             final_metrics = metadata.get("final_metrics") if isinstance(metadata.get("final_metrics"), dict) else {}
@@ -2208,6 +2233,7 @@ def get_experiment_summary(project_id: str, engine: str | None = Query(None)):
             "major_params": major_params,
             "loss_milestones": loss_milestones,
             "eval_series": eval_series,
+            "eval_time_series": eval_time_series,
             "preview_url": preview_url,
             "eval_points": len(eval_history) if isinstance(eval_history, list) else 0,
         }

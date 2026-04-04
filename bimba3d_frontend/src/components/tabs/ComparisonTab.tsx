@@ -42,6 +42,7 @@ interface SummaryPayload {
   };
   loss_milestones?: Record<string, number | null | undefined>;
   eval_series?: Array<{ step?: number; loss?: number }>;
+  eval_time_series?: Array<{ step?: number; elapsed_seconds?: number }>;
   preview_url?: string | null;
   eval_points?: number;
 }
@@ -63,6 +64,7 @@ interface FilesPayload {
 }
 
 const metricRows: Array<{ key: string; label: string; lowerIsBetter?: boolean }> = [
+  { key: "total_time_seconds", label: "Total Time", lowerIsBetter: true },
   { key: "convergence_speed", label: "Convergence Speed" },
   { key: "final_loss", label: "Final Loss", lowerIsBetter: true },
   { key: "lpips_mean", label: "LPIPS", lowerIsBetter: true },
@@ -70,8 +72,9 @@ const metricRows: Array<{ key: string; label: string; lowerIsBetter?: boolean }>
   { key: "num_gaussians", label: "Gaussian Count" },
 ];
 
-const graphMetricRows: Array<{ key: string; label: string; type: "loss" | "tuning" | "major"; path?: string[] }> = [
+const graphMetricRows: Array<{ key: string; label: string; type: "loss" | "time" | "tuning" | "major"; path?: string[] }> = [
   { key: "loss_milestone", label: "Step vs Loss", type: "loss" },
+  { key: "elapsed_time", label: "Step vs Time (elapsed)", type: "time" },
   { key: "means_lr", label: "Step vs Means LR (tuning)", type: "tuning", path: ["learning_rates", "means"] },
   { key: "opacities_lr", label: "Step vs Opacities LR (tuning)", type: "tuning", path: ["learning_rates", "opacities"] },
   { key: "sh0_lr", label: "Step vs SH0 LR (tuning)", type: "tuning", path: ["learning_rates", "sh0"] },
@@ -104,6 +107,22 @@ function fmt(v: unknown): string {
   if (Math.abs(v) >= 1000) return v.toLocaleString();
   if (Math.abs(v) >= 1) return v.toFixed(4);
   return v.toPrecision(4);
+}
+
+function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "-";
+  const rounded = Math.round(seconds);
+  const h = Math.floor(rounded / 3600);
+  const m = Math.floor((rounded % 3600) / 60);
+  const s = rounded % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function fmtMetricValue(key: string, v: unknown): string {
+  if (key === "total_time_seconds" && typeof v === "number") return formatDuration(v);
+  return fmt(v);
 }
 
 function deltaText(left?: number | null, right?: number | null, lowerIsBetter?: boolean): string {
@@ -145,6 +164,24 @@ function getLossSeriesPoints(summary?: SummaryPayload | null): GraphPoint[] {
     })
     .filter((item): item is GraphPoint => item !== null)
     .sort((a, b) => a.x - b.x);
+}
+
+function getTimeSeriesPoints(summary?: SummaryPayload | null): GraphPoint[] {
+  const fromApiSeries = (summary?.eval_time_series ?? [])
+    .map((item) => {
+      if (!item || typeof item.step !== "number" || typeof item.elapsed_seconds !== "number") return null;
+      if (!Number.isFinite(item.step) || !Number.isFinite(item.elapsed_seconds)) return null;
+      return { x: item.step, y: item.elapsed_seconds };
+    })
+    .filter((item): item is GraphPoint => item !== null)
+    .sort((a, b) => a.x - b.x);
+
+  if (fromApiSeries.length > 0) return fromApiSeries;
+
+  const conv = summary?.metrics?.convergence_speed;
+  const lossSeries = getLossSeriesPoints(summary);
+  if (typeof conv !== "number" || !Number.isFinite(conv) || conv <= 0 || lossSeries.length === 0) return [];
+  return lossSeries.map((p) => ({ x: p.x, y: p.x / conv }));
 }
 
 function getTuningSeriesPoints(summary: SummaryPayload | null | undefined, path?: string[]): GraphPoint[] {
@@ -503,12 +540,14 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
 
   const leftGraphPoints = useMemo(() => {
     if (selectedGraphRow.type === "loss") return getLossSeriesPoints(leftSummary);
+    if (selectedGraphRow.type === "time") return getTimeSeriesPoints(leftSummary);
     if (selectedGraphRow.type === "tuning") return getTuningSeriesPoints(leftSummary, selectedGraphRow.path);
     return getMajorParamSeriesPoints(leftSummary, selectedGraphRow.key, graphXMax);
   }, [leftSummary, selectedGraphRow, graphXMax]);
 
   const rightGraphPoints = useMemo(() => {
     if (selectedGraphRow.type === "loss") return getLossSeriesPoints(rightSummary);
+    if (selectedGraphRow.type === "time") return getTimeSeriesPoints(rightSummary);
     if (selectedGraphRow.type === "tuning") return getTuningSeriesPoints(rightSummary, selectedGraphRow.path);
     return getMajorParamSeriesPoints(rightSummary, selectedGraphRow.key, graphXMax);
   }, [rightSummary, selectedGraphRow, graphXMax]);
@@ -697,8 +736,8 @@ export default function ComparisonTab({ currentProjectId }: ComparisonTabProps) 
                   return (
                     <tr key={row.key} className="border-t border-slate-100">
                       <td className="px-4 py-2 text-slate-700">{row.label}</td>
-                      <td className="px-4 py-2 text-slate-900">{fmt(leftVal)}</td>
-                      <td className="px-4 py-2 text-slate-900">{fmt(rightVal)}</td>
+                      <td className="px-4 py-2 text-slate-900">{fmtMetricValue(row.key, leftVal)}</td>
+                      <td className="px-4 py-2 text-slate-900">{fmtMetricValue(row.key, rightVal)}</td>
                       <td className="px-4 py-2 text-slate-600">{deltaText(leftVal, rightVal, row.lowerIsBetter)}</td>
                     </tr>
                   );
