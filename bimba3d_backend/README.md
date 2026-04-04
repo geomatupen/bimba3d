@@ -49,6 +49,6 @@ Use that as the single source of truth to avoid duplicated instructions.
 - Resolved mode is persisted in project status as `worker_mode`.
 
 ## Notes
-- Default `max_steps` is 300; previews and splat exports occur at configured intervals.
+- Default `max_steps` is 15000; previews and splat exports occur at configured intervals.
 - Manual stop triggers a final export and sets status to `stopped`.
 - If CUDA is unavailable, training runs on CPU (slower).

@@ -507,13 +507,10 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
 
   const resetConfigToDefaults = () => {
     const defaults = getDefaultProcessConfig();
-    if (configTab === "training") {
-      applyTrainingDefaults(defaults);
-    } else if (configTab === "colmap") {
-      applyColmapDefaults(defaults);
-    } else {
-      applyImageDefaults(defaults);
-    }
+    // Reset should restore the full configuration, not only the active tab.
+    applyTrainingDefaults(defaults);
+    applyColmapDefaults(defaults);
+    applyImageDefaults(defaults);
     localStorage.removeItem(`processConfig_${projectId}`);
   };
 
@@ -2888,7 +2885,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                   onChange={(e) => setTuneEndStep(Math.max(1, parseInt(e.target.value) || 15000))}
                                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 />
-                                <p className="text-[11px] text-slate-500 mt-1">Rule-based updates run until this step (e.g., 300 or 500), then stop.</p>
+                                <p className="text-[11px] text-slate-500 mt-1">Rule-based updates run until this step (default: 15,000), then stop.</p>
                               </div>
                             )}
                             {engine === "gsplat" && mode === "modified" && (
