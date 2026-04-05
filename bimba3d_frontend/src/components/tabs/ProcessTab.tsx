@@ -258,35 +258,16 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
   const [opacityThreshold, setOpacityThreshold] = useState<number>(cfg.opacityThreshold ?? 0.005);
   const [lambdaDssim, setLambdaDssim] = useState<number>(cfg.lambdaDssim ?? 0.2);
 
-  const densifySchedule = useMemo(() => {
-    const normalizedStart = Math.max(0, densifyFromIter);
-    const interval = Math.max(1, Math.abs(densificationInterval) || 1);
-    const firstStep = normalizedStart <= 0 ? interval : normalizedStart;
-    const previewSteps: number[] = [];
-    for (let i = 0; i < 4; i += 1) {
-      previewSteps.push(firstStep + i * interval);
-    }
-    return { interval, firstStep, previewSteps };
-  }, [densifyFromIter, densificationInterval]);
-  const firstDensifyStep = densifySchedule.firstStep;
-  const upcomingDensifySteps = densifySchedule.previewSteps;
-  const densifyStopRespected = useMemo(() => {
-    if (densifyUntilIter <= 0) return true;
-    return firstDensifyStep <= densifyUntilIter;
-  }, [densifyUntilIter, firstDensifyStep]);
-  const densifyScheduleBlocked = densificationInterval <= 0 || !densifyStopRespected;
+  const densifyScheduleBlocked = densificationInterval <= 0 || densifyFromIter >= densifyUntilIter;
   const densifyBlockedReason = useMemo(() => {
     if (densificationInterval <= 0) {
       return "Set a positive densification interval so gsplat can schedule refinements.";
     }
-    if (!densifyStopRespected) {
-      if (densifyFromIter > densifyUntilIter) {
-        return `Start step (${densifyFromIter.toLocaleString()}) must be at or before the stop step (${densifyUntilIter.toLocaleString()}).`;
-      }
-      return `First densify pass would run at step ${firstDensifyStep.toLocaleString()}, which is after the stop step (${densifyUntilIter.toLocaleString()}).`;
+    if (densifyFromIter >= densifyUntilIter) {
+      return `Start step (${densifyFromIter.toLocaleString()}) must be lower than the stop step (${densifyUntilIter.toLocaleString()}).`;
     }
     return null;
-  }, [densificationInterval, densifyFromIter, densifyStopRespected, densifyUntilIter, firstDensifyStep]);
+  }, [densificationInterval, densifyFromIter, densifyUntilIter]);
 
   const [colmapMaxImageSize, setColmapMaxImageSize] = useState<number | undefined>(cfg.colmap?.max_image_size ?? 1600);
   const [colmapPeakThreshold, setColmapPeakThreshold] = useState<number | undefined>(cfg.colmap?.peak_threshold ?? undefined);
@@ -3339,30 +3320,6 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                       </div>
                                     </div>
                                     <p className="text-[11px] text-slate-500 mt-1">Controls how aggressively new Gaussians are created throughout training.</p>
-                                    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600 space-y-1">
-                                      <p>
-                                        gsplat runs densification whenever the iteration is at least the start step and $(iteration - start)$ is divisible by the interval.
-                                        If the start is 0 or lower, the trainer waits until the first interval elapses to fire.
-                                      </p>
-                                      <p>
-                                        With the current values the first pass would be at <span className="font-semibold text-slate-800">step {firstDensifyStep.toLocaleString()}</span>.
-                                      </p>
-                                      {upcomingDensifySteps.length > 0 && (
-                                        <div>
-                                          <p className="font-semibold text-slate-700 mt-1">Upcoming passes</p>
-                                          <div className="flex flex-wrap gap-1 mt-1">
-                                            {upcomingDensifySteps.map((step, idx) => (
-                                              <span key={`densifyStep-${idx}`} className="px-2 py-1 rounded-full border border-slate-300 bg-white text-[11px] text-slate-700">
-                                                {step.toLocaleString()}
-                                              </span>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      )}
-                                      {!densifyStopRespected && (
-                                        <p className="text-amber-600">This first pass is beyond the stop step of {densifyUntilIter.toLocaleString()}. Increase the stop step or lower the start/interval.</p>
-                                      )}
-                                    </div>
                                   </div>
                                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                     <div>
