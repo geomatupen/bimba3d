@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+﻿import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { Play, Settings2, Layers, Map as MapIcon, Boxes, Check, X, Clock, Square, Download, Info as LucideInfo } from "lucide-react";
 import Map, { NavigationControl } from "react-map-gl/maplibre";
 import maplibregl from "maplibre-gl";
@@ -304,7 +304,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
     logInterval: 'How often (in steps) to print consolidated training snapshots in worker logs. Lower values are more verbose. [custom]',
     splatInterval: 'How often (in steps) to export intermediate .splat/.ply files during training. [original]',
     pngInterval: 'Deprecated for gsplat: previews are generated on eval steps. Use eval interval to control preview cadence.',
-    evalInterval: 'How often to run eval passes + metrics collection. This value is configurable from frontend in both modes. [original]',
+    evalInterval: 'How often to run eval passes + metrics collection. Preview images are generated on each eval step. This value is configurable from frontend in both modes. [original]',
     saveInterval: 'Checkpoint frequency for gsplat. This value is configurable from frontend. [original]',
     densify_from_iter: 'Iteration to start densifying Gaussians. This value is configurable from frontend in both modes. [original]',
     densify_until_iter: 'Iteration after which densification stops. This value is configurable from frontend in both modes. [original]',
@@ -1171,7 +1171,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
   }, [locations]);
 
   const formatBytes = (bytes?: number) => {
-    if (!bytes || bytes <= 0) return "—";
+    if (!bytes || bytes <= 0) return "â€”";
     const units = ["B", "KB", "MB", "GB"];
     const order = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
     const value = bytes / Math.pow(1024, order);
@@ -1239,7 +1239,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
       const rawList = Array.isArray(data?.candidates) ? data.candidates : [];
       const bestEntry = bestRel ? rawList.find((entry: any) => (entry?.relative_path ?? ".") === bestRel) : null;
       const bestTarget = bestRel ? describeEntry(bestRel, bestEntry) : null;
-      const bestLabel = bestTarget ? `Auto (best → ${bestTarget})` : "Auto (best available)";
+      const bestLabel = bestTarget ? `Auto (best â†’ ${bestTarget})` : "Auto (best available)";
 
       const formatted: Array<{ value: string; label: string }> = [
         { value: "best", label: bestLabel },
@@ -1453,7 +1453,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
           "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         ],
         tileSize: 256,
-        attribution: "© Esri World Imagery",
+        attribution: "Â© Esri World Imagery",
       },
     },
     layers: [
@@ -1476,7 +1476,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
               'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
             ],
             tileSize: 256,
-            attribution: '© OpenStreetMap contributors'
+            attribution: 'Â© OpenStreetMap contributors'
           }
         },
         layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
@@ -2638,7 +2638,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                 {snapshot.step ? `Step ${snapshot.step.toLocaleString()}` : snapshot.name}
                               </p>
                               <p className="text-[11px] text-slate-500 truncate">
-                                {(snapshot.format || 'splat').toUpperCase()}{snapshot.size ? ` · ${formatBytes(snapshot.size)}` : ''}
+                                {(snapshot.format || 'splat').toUpperCase()}{snapshot.size ? ` Â· ${formatBytes(snapshot.size)}` : ''}
                               </p>
                             </div>
                           </label>
@@ -2814,11 +2814,11 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowConfig(false)} />
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div className="w-[820px] max-w-full bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-1 border-b border-slate-200">
+              <div className="flex items-center justify-between px-3.5 py-0.5 border-b border-slate-200">
                 <div>
                   <p className="text-xs uppercase font-semibold text-slate-500">Advanced</p>
-                  <h3 className="text-base font-bold text-slate-900">Processing Configuration</h3>
-                  <p className="text-[11px] font-medium text-slate-500">
+                  <h3 className="text-base font-bold leading-tight text-slate-900">Processing Configuration</h3>
+                  <p className="text-xs leading-none font-medium text-slate-500 mb-1">
                     Session: {selectedRunMeta?.run_name || selectedRunId || "latest"}
                   </p>
                 </div>
@@ -2827,99 +2827,96 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                 </button>
               </div>
 
-              <div className="px-4 pt-1.5 pb-4 text-sm overflow-auto max-h-[70vh]">
+              <div className="px-3.5 pt-0.5 pb-2.5 text-sm overflow-auto max-h-[70vh]">
                 {!canManageColmapImages && (
-                  <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <div className="mb-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs text-amber-800">
                     Non-base session: Image and COLMAP settings are hidden. This session is training-only by default.
                   </div>
                 )}
                 {!canManageColmapImages && sharedImageSizeMismatch && baseColmapProfile && (
-                  <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  <div className="mb-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs text-amber-900">
                     Base COLMAP for {baseColmapProfile.runName} used {baseColmapProfile.resizeEnabled && typeof baseColmapProfile.imageSize === "number" ? `${baseColmapProfile.imageSize}px` : "original size"},
                     but shared image size is now {imagesResizeEnabled && typeof imagesMaxSize === "number" ? `${imagesMaxSize}px` : "original size"}.
                     Re-run base-session COLMAP to refresh shared sparse before continuing with this session.
                   </div>
                 )}
                 {selectedRunSharedOutdated && (
-                  <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  <div className="mb-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs text-amber-900">
                     This session references an older shared-config version from the base session. Create a new session (or re-run from base) to pick up latest shared image/COLMAP settings.
                   </div>
                 )}
                 <div className="grid grid-cols-12 gap-0">
-                  <div className="col-span-2 flex flex-col gap-1">
+                  <div className="col-span-2 flex flex-col gap-0.5">
                     {canManageColmapImages && (
                       <button
                         onClick={() => setConfigTab("images")}
-                        className={`text-left px-3 py-2 rounded-lg flex items-center justify-between ${configTab === "images" ? "bg-blue-600 text-white font-semibold shadow" : "bg-slate-50 text-slate-700 hover:bg-slate-100"}`}
+                        className={`text-left text-sm px-2.5 py-1 rounded-md flex items-center justify-between ${configTab === "images" ? "bg-blue-600 text-white font-semibold shadow" : "bg-slate-50 text-slate-700 hover:bg-slate-100"}`}
                       >
                         <span>Images</span>
-                        {configTab === "images" && <div className="w-2 h-6 bg-white/20 rounded ml-2" />}
+                        {configTab === "images" && <div className="w-2 h-5 bg-white/20 rounded ml-2" />}
                       </button>
                     )}
                     {canManageColmapImages && (
                       <button
                         onClick={() => setConfigTab("colmap")}
-                        className={`text-left px-3 py-2 rounded-lg flex items-center justify-between ${configTab === "colmap" ? "bg-blue-600 text-white font-semibold shadow" : "bg-slate-50 text-slate-700 hover:bg-slate-100"}`}
+                        className={`text-left text-sm px-2.5 py-1 rounded-md flex items-center justify-between ${configTab === "colmap" ? "bg-blue-600 text-white font-semibold shadow" : "bg-slate-50 text-slate-700 hover:bg-slate-100"}`}
                       >
                         <span>COLMAP</span>
-                        {configTab === "colmap" && <div className="w-2 h-6 bg-white/20 rounded ml-2" />}
+                        {configTab === "colmap" && <div className="w-2 h-5 bg-white/20 rounded ml-2" />}
                       </button>
                     )}
                     <button
                       onClick={() => setConfigTab("training")}
-                      className={`text-left px-3 py-2 rounded-lg flex items-center justify-between ${configTab === "training" ? "bg-blue-600 text-white font-semibold shadow" : "bg-slate-50 text-slate-700 hover:bg-slate-100"}`}
+                      className={`text-left text-sm px-2.5 py-1 rounded-md flex items-center justify-between ${configTab === "training" ? "bg-blue-600 text-white font-semibold shadow" : "bg-slate-50 text-slate-700 hover:bg-slate-100"}`}
                     >
                       <span>Training</span>
-                      {configTab === "training" && <div className="w-2 h-6 bg-white/20 rounded ml-2" />}
+                      {configTab === "training" && <div className="w-2 h-5 bg-white/20 rounded ml-2" />}
                     </button>
                   </div>
-                  <div className="col-span-7">
+                  <div className="col-span-7 [&_input]:text-[15px] [&_select]:text-[15px]">
                     {configTab === "training" ? (
-                      <div className="space-y-6">
+                      <div className="space-y-1 text-sm">
                         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-                          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+                          <div className="flex items-center justify-between px-3 py-1 border-b border-slate-100">
                             <div>
                               <p className="text-sm font-semibold text-slate-800">Shared controls</p>
-                              <p className="text-xs text-slate-500">Only knobs that both backends actually consume.</p>
                             </div>
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 px-4 py-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-0 px-3 py-0.5">
                             <div className="md:col-span-2">
-                              <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                              <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                 <span>Training Engine</span>
                                 <button onClick={() => setSelectedInfoKey("engine")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                               </label>
                               <select
                                 value={engine}
                                 onChange={(e) => setEngine(e.target.value as TrainingEngine)}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               >
                                 <option value="gsplat">gsplat (default pipeline)</option>
                                 <option value="litegs">LiteGS (compact renderer)</option>
                               </select>
-                              <p className="text-[11px] text-slate-500 mt-1">Switch engines to reveal the matching parameter card below.</p>
                             </div>
                             {engine === "gsplat" && (
                               <div className="md:col-span-2">
-                                <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                                <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                   <span>Training Profile</span>
                                   <button onClick={() => setSelectedInfoKey("mode")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                                 </label>
                                 <select
                                   value={mode}
                                   onChange={(e) => setMode((e.target.value as "baseline" | "modified") || "baseline")}
-                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                   disabled={processing || isStopping}
                                 >
                                   <option value="baseline">Baseline</option>
                                   <option value="modified">Modified</option>
                                 </select>
-                                <p className="text-[11px] text-slate-500 mt-1">Modified mode runs rule-based tuning updates through the configured end step, then continues normally.</p>
                               </div>
                             )}
                             {engine === "gsplat" && mode === "modified" && (
                               <div>
-                                <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                                <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                   <span>Modified tuning start step</span>
                                   <button onClick={() => setSelectedInfoKey("tune_start_step")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                                 </label>
@@ -2929,14 +2926,13 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                   step={1}
                                   value={tuneStartStep}
                                   onChange={(e) => setTuneStartStep(Math.max(1, parseInt(e.target.value) || 100))}
-                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 />
-                                <p className="text-[11px] text-slate-500 mt-1">Tuning checks are disabled before this step so early optimization is not over-constrained.</p>
                               </div>
                             )}
                             {engine === "gsplat" && mode === "modified" && (
                               <div>
-                                <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                                <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                   <span>Minimum improvement for update</span>
                                   <button onClick={() => setSelectedInfoKey("tune_min_improvement")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                                 </label>
@@ -2952,14 +2948,13 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                       setTuneMinImprovement(Math.max(0, Math.min(1, value)));
                                     }
                                   }}
-                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 />
-                                <p className="text-[11px] text-slate-500 mt-1">Core individual updates only when relative loss improvement drops below this value.</p>
                               </div>
                             )}
                             {engine === "gsplat" && mode === "modified" && (
                               <div>
-                                <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                                <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                   <span>Modified tuning end step</span>
                                   <button onClick={() => setSelectedInfoKey("tune_end_step")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                                 </label>
@@ -2969,14 +2964,13 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                   step={1}
                                   value={tuneEndStep}
                                   onChange={(e) => setTuneEndStep(Math.max(1, parseInt(e.target.value) || 15000))}
-                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 />
-                                <p className="text-[11px] text-slate-500 mt-1">Rule-based updates run until this step (default: 15,000), then stop.</p>
                               </div>
                             )}
                             {engine === "gsplat" && mode === "modified" && (
                               <div>
-                                <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                                <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                   <span>Modified tuning interval</span>
                                   <button onClick={() => setSelectedInfoKey("tune_interval")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                                 </label>
@@ -2986,48 +2980,43 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                   step={1}
                                   value={tuneInterval}
                                   onChange={(e) => setTuneInterval(Math.max(1, parseInt(e.target.value) || 100))}
-                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 />
-                                <p className="text-[11px] text-slate-500 mt-1">Rule-based checks are evaluated every N steps during the tuning window.</p>
                               </div>
                             )}
                             {engine === "gsplat" && mode === "modified" && (
                               <div>
-                                <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                                <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                   <span>Rule tuning scope</span>
                                   <button onClick={() => setSelectedInfoKey("tune_scope")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                                 </label>
                                 <select
                                   value={tuneScope}
                                   onChange={(e) => setTuneScope((e.target.value as TuneScope) || "core_individual_plus_strategy")}
-                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 >
                                   <option value="core_individual">Core individual</option>
                                   <option value="core_only">Core only</option>
                                   <option value="core_ai_optimization">Core AI optimization</option>
                                   <option value="core_individual_plus_strategy">Core individual + strategy</option>
                                 </select>
-                                <p className="text-[11px] text-slate-500 mt-1">Core individual tunes only LR groups. Core only also tunes grow threshold. Core AI optimization uses a lightweight adaptive learner with gated actions and tunes LR plus core strategy thresholds. Core individual + strategy tunes LR plus full strategy controls.</p>
                               </div>
                             )}
                             <div className="md:col-span-2">
-                              <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                              <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                 <span>Sparse reconstruction preference</span>
                                 <button onClick={() => setSelectedInfoKey("sparse_preference")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                               </label>
                               <select
                                 value={sparsePreference}
                                 onChange={(e) => setSparsePreference(e.target.value)}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 disabled={sparseOptionsLoading}
                               >
                                 {sparseOptions.map((opt) => (
                                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                                 ))}
                               </select>
-                              <p className="text-[11px] text-slate-500 mt-1">
-                                {sparseOptionsLoading ? "Scanning for COLMAP runs..." : "Override the default whenever multiple reconstructions exist."}
-                              </p>
                               {sparsePreference === "merge_selected" && (
                                 <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
                                   <div className="flex items-center justify-between gap-2">
@@ -3174,7 +3163,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                               )}
                             </div>
                             <div>
-                              <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                              <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                 <span>Max steps</span>
                                 <button onClick={() => setSelectedInfoKey("maxSteps")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                               </label>
@@ -3182,24 +3171,15 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                 type="number"
                                 value={maxSteps}
                                 onChange={(e) => setMaxSteps(parseInt(e.target.value) || 15000)}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md"
                                 min={100}
                                 max={50000}
                                 step={100}
                               />
                             </div>
-                            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-0.5">
                               <div>
-                                <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
-                                  <span>Preview cadence</span>
-                                  <button onClick={() => setSelectedInfoKey("pngInterval")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
-                                </label>
-                                <div className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-lg text-xs text-slate-600">
-                                  Generated automatically on each eval step.
-                                </div>
-                              </div>
-                              <div>
-                                <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                                <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                   <span>Splat export interval</span>
                                   <button onClick={() => setSelectedInfoKey("splatInterval")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                                 </label>
@@ -3207,7 +3187,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                   type="number"
                                   value={splatInterval}
                                   onChange={(e) => setSplatInterval(parseInt(e.target.value) || 2500)}
-                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md"
                                   min={50}
                                   step={50}
                                 />
@@ -3215,7 +3195,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                               {engine === "gsplat" && (
                               <>
                                 <div>
-                                <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                                <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                   <span>Log interval</span>
                                   <button onClick={() => setSelectedInfoKey("logInterval")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                                 </label>
@@ -3223,13 +3203,13 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                   type="number"
                                   value={logInterval}
                                   onChange={(e) => setLogInterval(parseInt(e.target.value) || 100)}
-                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md"
                                   min={10}
                                   step={10}
                                 />
                                 </div>
                                 <div>
-                                <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                                <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                   <span>Eval interval</span>
                                   <button onClick={() => setSelectedInfoKey("evalInterval")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                                 </label>
@@ -3237,13 +3217,13 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                   type="number"
                                   value={evalInterval}
                                   onChange={(e) => setEvalInterval(parseInt(e.target.value) || 1000)}
-                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md"
                                   min={50}
                                   step={50}
                                 />
                                 </div>
                                 <div>
-                                <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                                <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                   <span>Checkpoint interval</span>
                                   <button onClick={() => setSelectedInfoKey("saveInterval")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                                 </label>
@@ -3251,7 +3231,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                   type="number"
                                   value={saveInterval}
                                   onChange={(e) => setSaveInterval(parseInt(e.target.value) || 2500)}
-                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md"
                                   min={50}
                                   step={50}
                                 />
@@ -3264,18 +3244,18 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
 
                         {engine === "gsplat" && (
                           <div className="rounded-xl border border-blue-200 bg-white shadow-sm">
-                            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+                            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
                               <div>
                                 <p className="text-sm font-semibold text-slate-800">gsplat-only controls</p>
                                 <p className="text-xs text-slate-500">Only applied when gsplat is selected.</p>
                               </div>
                               <span className="text-xs px-3 py-1 rounded-full bg-blue-100 text-blue-700">gsplat selected</span>
                             </div>
-                            <div className="space-y-5 px-4 py-4">
-                                <div className="space-y-5 border-t border-slate-100 pt-4">
+                            <div className="space-y-0.5 px-3 py-0.5 text-sm">
+                              <div className="space-y-0.5 border-t border-slate-100 pt-0.5">
                                   <div>
                                     <p className="text-xs font-semibold text-slate-600 mb-2">Densification schedule</p>
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-0">
                                       <div>
                                         <label className="flex items-center justify-between text-[11px] font-semibold text-slate-500 mb-1">
                                           <span>Start step</span>
@@ -3285,7 +3265,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                           type="number"
                                           value={densifyFromIter}
                                           onChange={(e) => setDensifyFromIter(parseInt(e.target.value) || 0)}
-                                          className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                          className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md"
                                           min={0}
                                           step={50}
                                         />
@@ -3299,7 +3279,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                           type="number"
                                           value={densifyUntilIter}
                                           onChange={(e) => setDensifyUntilIter(parseInt(e.target.value) || 0)}
-                                          className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                          className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md"
                                           min={0}
                                           step={100}
                                         />
@@ -3313,17 +3293,16 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                           type="number"
                                           value={densificationInterval}
                                           onChange={(e) => setDensificationInterval(parseInt(e.target.value) || 1)}
-                                          className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                          className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md"
                                           min={10}
                                           step={10}
                                         />
                                       </div>
                                     </div>
-                                    <p className="text-[11px] text-slate-500 mt-1">Controls how aggressively new Gaussians are created throughout training.</p>
                                   </div>
-                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-0">
                                     <div>
-                                      <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                                      <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                         <span>Densify grad threshold</span>
                                         <button onClick={() => setSelectedInfoKey("densify_grad_threshold")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                                       </label>
@@ -3332,12 +3311,12 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                         step="0.00005"
                                         value={densifyGradThreshold}
                                         onChange={(e) => setDensifyGradThreshold(parseFloat(e.target.value) || 0.0002)}
-                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                        className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md"
                                         min={0.00005}
                                       />
                                     </div>
                                     <div>
-                                      <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                                      <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                         <span>Opacity threshold</span>
                                         <button onClick={() => setSelectedInfoKey("opacity_threshold")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                                       </label>
@@ -3346,12 +3325,12 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                         step="0.0005"
                                         value={opacityThreshold}
                                         onChange={(e) => setOpacityThreshold(parseFloat(e.target.value) || 0)}
-                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                        className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md"
                                         min={0}
                                       />
                                     </div>
                                     <div>
-                                      <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                                      <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                         <span>DSSIM weight</span>
                                         <button onClick={() => setSelectedInfoKey("lambda_dssim")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                                       </label>
@@ -3360,7 +3339,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                         step="0.05"
                                         value={lambdaDssim}
                                         onChange={(e) => setLambdaDssim(parseFloat(e.target.value) || 0)}
-                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                        className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md"
                                         min={0}
                                       />
                                     </div>
@@ -3373,16 +3352,16 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
 
                         {engine === "litegs" && (
                           <div className="rounded-xl border border-blue-200 bg-white shadow-sm">
-                            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+                            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
                               <div>
                                 <p className="text-sm font-semibold text-slate-800">LiteGS-only controls</p>
                                 <p className="text-xs text-slate-500">Only applied when LiteGS is selected.</p>
                               </div>
                               <span className="text-xs px-3 py-1 rounded-full bg-blue-100 text-blue-700">LiteGS selected</span>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 px-4 py-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-0 px-3 py-0.5 text-sm">
                               <div>
-                                <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                                <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                   <span>Target primitives</span>
                                   <button onClick={() => setSelectedInfoKey("litegs_target_primitives")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                                 </label>
@@ -3390,14 +3369,13 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                   type="number"
                                   value={litegsTargetPrimitives}
                                   onChange={(e) => setLitegsTargetPrimitives(parseInt(e.target.value || "0") || 0)}
-                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md"
                                   min={5000}
                                   step={1000}
                                 />
-                                <div className="text-[11px] text-slate-500 mt-1">LiteGS grows Gaussians until it approaches this count.</div>
                               </div>
                               <div>
-                                <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                                <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                                   <span>Alpha shrink factor</span>
                                   <button onClick={() => setSelectedInfoKey("litegs_alpha_shrink")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                                 </label>
@@ -3408,18 +3386,17 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                   max={1.0}
                                   value={litegsAlphaShrink}
                                   onChange={(e) => setLitegsAlphaShrink(parseFloat(e.target.value) || 0.95)}
-                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md"
                                 />
-                                <div className="text-[11px] text-slate-500 mt-1">Lower values tighten lobes faster; keep near 0.95 for stability.</div>
                               </div>
                             </div>
                           </div>
                         )}
                       </div>
                     ) : canManageColmapImages && configTab === "colmap" ? (
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-0 text-sm">
                         <div>
-                          <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                          <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                             <span>SIFT Max Image Size</span>
                             <button onClick={() => setSelectedInfoKey("max_image_size")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                           </label>
@@ -3427,14 +3404,14 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                             type="number"
                             value={colmapMaxImageSize ?? ""}
                             onChange={(e) => setColmapMaxImageSize(e.target.value ? parseInt(e.target.value) : undefined)}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                            className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md"
                             min={256}
                             step={100}
                           />
                         </div>
 
                         <div>
-                          <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                          <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                             <span>SIFT Peak Threshold</span>
                             <button onClick={() => setSelectedInfoKey("peak_threshold")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                           </label>
@@ -3442,14 +3419,14 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                             type="number"
                             value={colmapPeakThreshold ?? ""}
                             onChange={(e) => setColmapPeakThreshold(e.target.value ? parseFloat(e.target.value) : undefined)}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                            className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md"
                             min={0.001}
                             step={0.001}
                           />
                         </div>
 
                         <div>
-                          <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                          <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                             <span>Guided Matching</span>
                             <button onClick={() => setSelectedInfoKey("guided_matching")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                           </label>
@@ -3460,11 +3437,11 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                         </div>
 
                         <div>
-                          <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                          <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                             <span>Camera Model</span>
                             <button onClick={() => setSelectedInfoKey("camera_model")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                           </label>
-                          <select value={colmapCameraModel} onChange={e => setColmapCameraModel(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg">
+                          <select value={colmapCameraModel} onChange={e => setColmapCameraModel(e.target.value)} className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md">
                             {COLMAP_CAMERA_MODELS.map((model) => (
                               <option key={model} value={model}>{model}</option>
                             ))}
@@ -3472,7 +3449,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                         </div>
 
                         <div>
-                          <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                          <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                             <span>Single Camera</span>
                             <button onClick={() => setSelectedInfoKey("single_camera")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                           </label>
@@ -3483,7 +3460,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                         </div>
 
                         <div className="col-span-2">
-                          <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                          <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                             <span>Camera Params (optional)</span>
                             <button onClick={() => setSelectedInfoKey("camera_params")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                           </label>
@@ -3491,64 +3468,64 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                             type="text"
                             value={colmapCameraParams}
                             onChange={(e) => setColmapCameraParams(e.target.value)}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                            className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md"
                             placeholder="Example for OPENCV: fx,fy,cx,cy,k1,k2,p1,p2"
                           />
                         </div>
 
                         <div>
-                          <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                          <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                             <span>Matching Strategy</span>
                             <button onClick={() => setSelectedInfoKey("matching_type")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                           </label>
-                          <select value={colmapMatchingType} onChange={e => setColmapMatchingType(e.target.value as any)} className="w-full px-3 py-2 border border-slate-300 rounded-lg">
+                          <select value={colmapMatchingType} onChange={e => setColmapMatchingType(e.target.value as any)} className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md">
                             <option value="exhaustive">Exhaustive</option>
                             <option value="sequential">Sequential</option>
                           </select>
                         </div>
 
                         <div>
-                          <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                          <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                             <span>Mapper Threads</span>
                             <button onClick={() => setSelectedInfoKey("mapper_num_threads")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                           </label>
-                          <input type="number" value={colmapMapperThreads ?? ""} onChange={e => setColmapMapperThreads(e.target.value ? parseInt(e.target.value) : undefined)} className="w-full px-3 py-2 border border-slate-300 rounded-lg" min={1} max={128} />
+                          <input type="number" value={colmapMapperThreads ?? ""} onChange={e => setColmapMapperThreads(e.target.value ? parseInt(e.target.value) : undefined)} className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md" min={1} max={128} />
                         </div>
 
                         <div>
-                          <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                          <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                             <span>Mapper Min Matches</span>
                             <button onClick={() => setSelectedInfoKey("mapper_min_num_matches")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                           </label>
-                          <input type="number" value={colmapMapperMinNumMatches ?? ""} onChange={e => setColmapMapperMinNumMatches(e.target.value ? parseInt(e.target.value) : undefined)} className="w-full px-3 py-2 border border-slate-300 rounded-lg" min={4} step={1} />
+                          <input type="number" value={colmapMapperMinNumMatches ?? ""} onChange={e => setColmapMapperMinNumMatches(e.target.value ? parseInt(e.target.value) : undefined)} className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md" min={4} step={1} />
                         </div>
 
                         <div>
-                          <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                          <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                             <span>Mapper AbsPose Min Inliers</span>
                             <button onClick={() => setSelectedInfoKey("mapper_abs_pose_min_num_inliers")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                           </label>
-                          <input type="number" value={colmapMapperAbsPoseMinNumInliers ?? ""} onChange={e => setColmapMapperAbsPoseMinNumInliers(e.target.value ? parseInt(e.target.value) : undefined)} className="w-full px-3 py-2 border border-slate-300 rounded-lg" min={6} step={1} />
+                          <input type="number" value={colmapMapperAbsPoseMinNumInliers ?? ""} onChange={e => setColmapMapperAbsPoseMinNumInliers(e.target.value ? parseInt(e.target.value) : undefined)} className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md" min={6} step={1} />
                         </div>
 
                         <div>
-                          <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                          <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                             <span>Mapper Init Min Inliers</span>
                             <button onClick={() => setSelectedInfoKey("mapper_init_min_num_inliers")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                           </label>
-                          <input type="number" value={colmapMapperInitMinNumInliers ?? ""} onChange={e => setColmapMapperInitMinNumInliers(e.target.value ? parseInt(e.target.value) : undefined)} className="w-full px-3 py-2 border border-slate-300 rounded-lg" min={10} step={1} />
+                          <input type="number" value={colmapMapperInitMinNumInliers ?? ""} onChange={e => setColmapMapperInitMinNumInliers(e.target.value ? parseInt(e.target.value) : undefined)} className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md" min={10} step={1} />
                         </div>
 
                         <div>
-                          <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                          <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                             <span>Match Min Inliers</span>
                             <button onClick={() => setSelectedInfoKey("sift_matching_min_num_inliers")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                           </label>
-                          <input type="number" value={colmapSiftMatchingMinNumInliers ?? ""} onChange={e => setColmapSiftMatchingMinNumInliers(e.target.value ? parseInt(e.target.value) : undefined)} className="w-full px-3 py-2 border border-slate-300 rounded-lg" min={6} step={1} />
+                          <input type="number" value={colmapSiftMatchingMinNumInliers ?? ""} onChange={e => setColmapSiftMatchingMinNumInliers(e.target.value ? parseInt(e.target.value) : undefined)} className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md" min={6} step={1} />
                         </div>
 
                         <div className="col-span-2">
-                          <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                          <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                             <span>Post-Mapper Image Registration</span>
                             <button onClick={() => setSelectedInfoKey("run_image_registrator")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                           </label>
@@ -3560,14 +3537,14 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                         
                       </div>
                     ) : (
-                      <div className="space-y-4">
+                      <div className="space-y-0.5 text-sm">
                         <div>
-                          <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                          <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                             <span>Shared image set</span>
                             <button onClick={() => setSelectedInfoKey("resize_mode")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                           </label>
-                          <div className="space-y-2">
-                            <label className={`flex items-center justify-between px-3 py-2 rounded-lg border ${!imagesResizeEnabled ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
+                          <div className="space-y-0.5">
+                            <label className={`flex items-center justify-between px-2.5 py-1.5 rounded-md border ${!imagesResizeEnabled ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
                               <span className="flex flex-col text-left">
                                 <span className="text-sm font-medium">Keep original uploads</span>
                                 <span className="text-[11px] text-slate-500 font-normal">COLMAP + training read your untouched files (highest fidelity, more VRAM).</span>
@@ -3579,7 +3556,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                                 onChange={() => setImagesResizeEnabled(false)}
                               />
                             </label>
-                            <label className={`flex items-center justify-between px-3 py-2 rounded-lg border ${imagesResizeEnabled ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
+                            <label className={`flex items-center justify-between px-2.5 py-1.5 rounded-md border ${imagesResizeEnabled ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
                               <span className="flex flex-col text-left">
                                 <span className="text-sm font-medium">Clone + downscale once</span>
                                 <span className="text-[11px] text-slate-500 font-normal">Creates a resized working set reused by COLMAP and gsplat.</span>
@@ -3597,8 +3574,8 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                           </div>
                         </div>
                         {imagesResizeEnabled ? (
-                          <div className="space-y-2">
-                            <label className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-1">
+                          <div className="space-y-0.5">
+                            <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-0.5">
                               <span>Max dimension (px)</span>
                               <button onClick={() => setSelectedInfoKey("images_max_size")} className="p-1 text-slate-400 hover:text-slate-600"><Info /></button>
                             </label>
@@ -3606,7 +3583,7 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                               type="number"
                               value={imagesMaxSize ?? ""}
                               onChange={(e) => setImagesMaxSize(e.target.value ? parseInt(e.target.value) : undefined)}
-                              className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                              className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md"
                               min={256}
                               step={50}
                             />
@@ -3615,16 +3592,16 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                         ) : (
                           <p className="text-[11px] text-slate-500">Disabling downscaling means both stages ingest the original uploads. Expect longer COLMAP runtimes and higher VRAM usage.</p>
                         )}
-                        <div className="text-[11px] text-slate-500 border border-slate-200 rounded-lg bg-slate-50 px-3 py-2">
+                        <div className="text-[11px] text-slate-500 border border-slate-200 rounded-md bg-slate-50 px-2.5 py-1.5">
                           We always keep two folders: your uploads and (optionally) a resized mirror inside <code>images_resized</code>. COLMAP intrinsics + gsplat training both read from the same folder so rays line up perfectly.
                         </div>
                       </div>
                     )}
                   </div>
                     <div className="col-span-3">
-                      <div className="p-3 border rounded h-full bg-slate-50">
+                      <div className="p-2.5 border rounded-md h-full bg-slate-50">
                       <h4 className="font-semibold text-sm">Parameter Info</h4>
-                      <div className="mt-2 text-sm text-slate-700">
+                      <div className="mt-1.5 text-xs text-slate-700 leading-relaxed">
                         {selectedInfoKey ? (
                           <div>{(configTab === "colmap"
                             ? (colmapInfo as any)[selectedInfoKey]
@@ -3639,22 +3616,22 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
                   </div>
                 </div>
               </div>
-              <div className="px-4 py-3 border-t border-slate-200 flex justify-end gap-2">
+              <div className="px-4 py-2.5 border-t border-slate-200 flex justify-end gap-1.5">
                 <button
                   onClick={resetConfigToDefaults}
-                  className="px-4 py-2 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 text-sm font-semibold"
+                  className="px-3 py-1.5 rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50 text-[13px] font-semibold"
                 >
                   Reset defaults
                 </button>
                 <button
                   onClick={() => setShowConfig(false)}
-                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-semibold"
+                  className="px-3 py-1.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 text-[13px] font-semibold"
                 >
                   Close
                 </button>
                 <button
                   onClick={() => setShowConfig(false)}
-                  className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold"
+                  className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-[13px] font-semibold"
                 >
                   Save
                 </button>
@@ -3805,3 +3782,4 @@ export default function ProcessTab({ projectId }: ProcessTabProps) {
     </div>
   );
 }
+
